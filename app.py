@@ -5,7 +5,8 @@ from dotenv import load_dotenv
 import httpx
 from fastapi import FastAPI, Request, Response
 from fastapi.responses import StreamingResponse, PlainTextResponse
-from statistics import patch_logging, track_request
+from statistics import patch_logging, track_request # type: ignore
+from replace import replace_footer
 
 load_dotenv()
 
@@ -300,6 +301,8 @@ async def proxy(path: str, request: Request):
             r"https?://([a-z0-9.-]+\.hath\.network(?::\d+)?)(/[^\s\"'>]+)?",
             lambda m: f"{proxy_base}/hath/{m.group(1)}{m.group(2) or ''}",
             content)
+        
+        content = replace_footer(content)
 
         clean_headers = {
             k: v

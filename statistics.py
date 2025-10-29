@@ -38,10 +38,11 @@ def patch_logging(app):
         logging.getLogger("uvicorn").setLevel(logging.ERROR)
         logging.getLogger("uvicorn.access").setLevel(logging.ERROR)
         logging.getLogger("uvicorn.error").setLevel(logging.ERROR)
-        print("已禁用原始 FastAPI 输出。")
+        print("已禁用原始 FastAPI 输出")
 
 
 async def track_request(request: Request, html: str):
     client_ip = request.client.host if request.client else "unknown"
     path = request.url.path
     log_request(client_ip, path, html)
+ # type: ignore
