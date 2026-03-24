@@ -17,6 +17,26 @@ var (
 	hathEscRegex = regexp.MustCompile(`(?i)https?:\\/\\/+([a-z0-9\.-]+\.hath\.network(?::\d+)?)(\\/[^\s"'>]+)?`)
 	apiuidRegex  = regexp.MustCompile(`var\s+apiuid\s*=\s*[^;]+;`)
 	apikeyRegex  = regexp.MustCompile(`var\s+apikey\s*=\s*["'][^"']+["'];`)
+	onionRegex   = regexp.MustCompile(`(?is)<h1 class="ih">ExHentai\.org\s*-\s*<a href="[^"]*\.onion">.*?</a>\s*&nbsp;<a href="[^"]*">\[\?\]</a></h1>`)
+
+	// 汉化字典
+	translations = map[string]string{
+		`>Doujinshi<`:                   `>同人志<`,
+		`>Manga<`:                       `>漫画<`,
+		`>Artist CG<`:                   `>画师 CG<`,
+		`>Game CG<`:                     `>游戏 CG<`,
+		`>Western<`:                     `>欧美<`,
+		`>Non-H<`:                       `>无 H<`,
+		`>Image Set<`:                   `>图集<`,
+		`>Cosplay<`:                     `>Cosplay<`,
+		`>Asian Porn<`:                  `>亚洲色情<`,
+		`>Misc<`:                        `>杂项<`,
+		`placeholder="Search Keywords"`: `placeholder="搜索关键字"`,
+		`value="Search"`:                `value="搜索"`,
+		`value="Clear"`:                 `value="清除"`,
+		`Show Advanced Options`:         `显示高级选项`,
+		`Show File Search`:              `显示文件搜索`,
+	}
 )
 
 type ProxyHandler struct {
@@ -115,7 +135,7 @@ func (h *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if nameLower == "host" || nameLower == "connection" || nameLower == "keep-alive" ||
 			nameLower == "proxy-authenticate" || nameLower == "proxy-authorization" || nameLower == "te" ||
 			nameLower == "trailers" || nameLower == "transfer-encoding" || nameLower == "upgrade" ||
-			nameLower == "cookie" || nameLower == "accept-encoding" { // 移除 Accept-Encoding 让 Go 自动处理解压
+			nameLower == "cookie" || nameLower == "accept-encoding" {
 			continue
 		}
 		for _, v := range values {
@@ -182,6 +202,7 @@ func (h *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		respBytes, _ := io.ReadAll(resp.Body)
 		content := string(respBytes)
 
+		// 域名替换
 		origins := []string{
 			"https://exhentai.org", "http://exhentai.org", "//exhentai.org",
 			"https://s.exhentai.org", "http://s.exhentai.org", "//s.exhentai.org",
@@ -190,14 +211,24 @@ func (h *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			content = strings.ReplaceAll(content, origin, proxyBase)
 		}
 
+		// 屏蔽前端敏感信息
 		content = apiuidRegex.ReplaceAllString(content, `var apiuid = "hidden";`)
 		content = apikeyRegex.ReplaceAllString(content, `var apikey = "hidden";`)
 
+		// Hath 替换
 		content = hathRegex.ReplaceAllStringFunc(content, func(m string) string {
 			matches := hathRegex.FindStringSubmatch(m)
 			return fmt.Sprintf("%s/hath/%s%s", proxyBase, matches[1], matches[2])
 		})
 
+		content = onionRegex.ReplaceAllString(content, `<h1 class="ih">ExHentai.org</h1>`)
+
+		// 界面汉化
+		for eng, chs := range translations {
+			content = strings.ReplaceAll(content, eng, chs)
+		}
+
+		// 替换页脚
 		content = replaceFooter(content)
 
 		// 记录访问日志
