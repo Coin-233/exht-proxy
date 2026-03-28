@@ -21,6 +21,10 @@ var (
 
 	// 汉化字典
 	translations = map[string]string{
+		`>Front<span class="nbw"> Page<`:		`>首页<`,
+		`>Popular<`:							`>热门<`,
+		`>Watched<`:							`><`,
+		`>Torrents<`:							`><`,
 		`>My Tags<`:                            `><`,
 		`>My </span>Uploads<`:                  `><`,
 		`>Settings<`:                           `><`,
@@ -45,7 +49,9 @@ var (
 		`Next &gt;`:                            `后一页 &gt;`,
 		`Last &gt;&gt;`:                        `末页 &gt;&gt;`,
 		`<p>Found about `:                      `<p>找到 `,
-		`results. `:                            `个结果 `,
+		`results. `:                            `个结果. `,
+		`Filtered`:								`过滤了`,
+		`galleries from this page`:				`个结果`
 		`>Multi-Page Viewer<`:                  `>多页查看器<`,
 		`title="language:chinese">chinese<`:    `title="language:chinese">汉语<`,
 	}
