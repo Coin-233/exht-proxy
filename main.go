@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"log"
 	"net/http"
 	"os"
@@ -29,8 +30,54 @@ func loggingMiddleware(next http.Handler) http.Handler {
 	})
 }
 
+func loadTranslations() {
+	translations = make(map[string]string)
+	jsTranslations = make(map[string]string)
+
+	file, err := os.Open("translations.txt")
+	if err != nil {
+		log.Printf("警告: 无法打开 translations.txt, 汉化将不会生效。错误: %v\n", err)
+		return
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	var currentTarget map[string]string
+
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+
+		// 忽略空行和注释
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+
+		if line == "[HTML]" {
+			currentTarget = translations
+			continue
+		} else if line == "[JS]" {
+			currentTarget = jsTranslations
+			continue
+		}
+
+		if currentTarget != nil {
+			parts := strings.SplitN(line, " === ", 2)
+			if len(parts) == 2 {
+				currentTarget[parts[0]] = parts[1]
+			}
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		log.Printf("读取 translations.txt 时发生错误: %v\n", err)
+	} else {
+		log.Printf("成功加载汉化字典: HTML(%d条) JS(%d条)\n", len(translations), len(jsTranslations))
+	}
+}
+
 func main() {
 	_ = godotenv.Load()
+	loadTranslations()
 
 	ShowLog = os.Getenv("SHOW_LOG") == "1"
 	if ShowLog {

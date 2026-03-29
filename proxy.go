@@ -20,81 +20,15 @@ var (
 	onionRegex   = regexp.MustCompile(`(?is)<h1 class="ih">ExHentai\.org\s*-\s*<a href="[^"]*\.onion">.*?</a>\s*&nbsp;<a href="[^"]*">\[\?\]</a></h1>`)
 
 	// 汉化字典
-	translations = map[string]string{
-		`>Front<span class="nbw"> Page<`:		`>首页<`,
-		`>Popular<`:							`>热门<`,
-		`>Watched<`:							`><`,
-		`>Torrents<`:							`><`,
-		`>My Tags<`:                            `><`,
-		`>My </span>Uploads<`:                  `><`,
-		`>Settings<`:                           `><`,
-		`>Fav<span class="nbw">orite</span>s<`: `><`,
-		`>Doujinshi<`:                          `>同人志<`,
-		`>Manga<`:                              `>漫画<`,
-		`>Artist CG<`:                          `>画师 CG<`,
-		`>Game CG<`:                            `>游戏 CG<`,
-		`>Western<`:                            `>欧美<`,
-		`>Non-H<`:                              `>无 H<`,
-		`>Image Set<`:                          `>图集<`,
-		`>Cosplay<`:                            `>Cosplay<`,
-		`>Asian Porn<`:                         `>亚洲色情<`,
-		`>Misc<`:                               `>杂项<`,
-		`placeholder="Search Keywords"`:        `placeholder="搜索关键字"`,
-		`value="Search"`:                       `value="搜索"`,
-		`value="Clear"`:                        `value="清除"`,
-		`Show Advanced Options`:                `显示高级选项`,
-		`Show File Search`:                     `显示文件搜索`,
-		`&lt;&lt; First`:                       `&lt;&lt; 首页`,
-		`&lt; Prev`:                            `&lt; 前一页`,
-		`Next &gt;`:                            `后一页 &gt;`,
-		`Last &gt;&gt;`:                        `末页 &gt;&gt;`,
-		`<p>Found about `:                      `<p>找到 `,
-		`results. `:                            `个结果. `,
-		`Filtered`:								`过滤了`,
-		`galleries from this page`:				`个结果`,
-		`>Multi-Page Viewer<`:                  `>多页查看器<`,
-		`title="language:chinese">chinese<`:    `title="language:chinese">汉语<`,
-	}
-
-	// JS 动态生成的界面汉化字典
-	jsTranslations = map[string]string{
-		`"Hide Advanced Options"`:     `"隐藏高级选项"`,
-		`"Show Advanced Options"`:     `"显示高级选项"`,
-		`"Hide File Search"`:          `"隐藏文件搜索"`,
-		`"Show File Search"`:          `"显示文件搜索"`,
-		`Browse Expunged Galleries`:   `浏览被删除的画廊`,
-		`Require Gallery Torrent`:     `要求画廊包含种子`,
-		`Between <input`:              `介于 <input`,
-		`/> and <input`:               `/> 到 <input`,
-		`/> pages`:                    `/> 页`,
-		`Minimum Rating:`:             `最低评分:`,
-		`>Any Rating<`:                `>任意评分<`,
-		`>2 Stars<`:                   `>2 星<`,
-		`>3 Stars<`:                   `>3 星<`,
-		`>4 Stars<`:                   `>4 星<`,
-		`>5 Stars<`:                   `>5 星<`,
-		`Disable custom filters for:`: `禁用以下自定义过滤器:`,
-		`<span></span> Language`:      `<span></span> 语言`,
-		`<span></span> Uploader`:      `<span></span> 上传者`,
-		`<span></span> Tags`:          `<span></span> 标签`,
-		`Select a file to upload, then hit File Search. All public galleries containing this exact file will be displayed.`: `选择要上传的文件，然后点击文件搜索。将显示包含此确切文件的所有公开画廊。`,
-		`For color images, the system can also perform a similarity lookup to find resampled images.`:                       `对于彩色图像，系统还可以执行相似度查找以寻找重采样图像。`,
-		`<span></span> Use Similarity Scan`: `<span></span> 使用相似度扫描`,
-		`<span></span> Only Search Covers`:  `<span></span> 仅搜索封面`,
-		`value="File Search"`:               `value="文件搜索"`,
-		`>Use Date Selector<`:               `>使用日期选择器<`,
-		`placeholder="date or offset"`:      `placeholder="日期或偏移量"`,
-		`>Close<`:                           `>关闭<`,
-		`>Cancel<`:                          `>取消<`,
-		`>Jump/Seek<`:                       `>跳转/搜寻<`,
-		`"&lt; Seek"`:                       `"&lt; 搜寻"`,
-		`"Seek &gt;"`:                       `"搜寻 &gt;"`,
-		`"&lt; Jump"`:                       `"&lt; 跳转"`,
-		`"Jump &gt;"`:                       `"跳转 &gt;"`,
-		`"&lt; Prev"`:                       `"&lt; 上一页"`,
-		`"Next &gt;"`:                       `"下一页 &gt;"`,
-	}
+	translations   map[string]string
+	jsTranslations map[string]string
 )
+
+// 定义用于解析 JSON 的结构体
+type TranslationsConfig struct {
+	HTML map[string]string `json:"html"`
+	JS   map[string]string `json:"js"`
+}
 
 type ProxyHandler struct {
 	client  *http.Client
