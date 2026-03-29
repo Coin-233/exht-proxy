@@ -51,7 +51,7 @@ var (
 		`<p>Found about `:                      `<p>找到 `,
 		`results. `:                            `个结果. `,
 		`Filtered`:								`过滤了`,
-		`galleries from this page`:				`个结果`
+		`galleries from this page`:				`个结果`,
 		`>Multi-Page Viewer<`:                  `>多页查看器<`,
 		`title="language:chinese">chinese<`:    `title="language:chinese">汉语<`,
 	}
