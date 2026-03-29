@@ -1,0 +1,37 @@
+changelog:
+  exclude:
+    labels:
+      - ignore-for-release
+    authors:
+      - github-actions[bot]
+  categories:
+    - title: "🚀 New Features"
+      labels:
+        - feature
+      collapse_after: 3
+      relevance_threshold: 1
+      body_template: |
+        以下是本次更新引入的新功能：
+      include_bullets: true
+      commit_prefixes:
+        - "feat:"
+        - "feat("
+
+    - title: "🛠️ Maintenance & CI"
+      commit_prefixes:
+        - "ci:"
+        - "chore:"
+        - "build:"
+
+    - title: "💄 Style & Refactor"
+      commit_prefixes:
+        - "style:"
+        - "refactor:"
+
+    - title: "🐛 Bug Fixes"
+      commit_prefixes:
+        - "fix:"
+
+    - title: "📝 Documentation"
+      commit_prefixes:
+        - "docs:"
