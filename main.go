@@ -78,6 +78,7 @@ func loadTranslations() {
 func main() {
 	_ = godotenv.Load()
 	loadTranslations()
+	InitDB()
 
 	ShowLog = os.Getenv("SHOW_LOG") == "1"
 	if ShowLog {

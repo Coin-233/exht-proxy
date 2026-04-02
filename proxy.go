@@ -35,6 +35,156 @@ type ProxyHandler struct {
 	cookies map[string]string
 }
 
+// 前端注入
+const injectedUI = `
+<style>
+  #proxy-modal { display:none; position:fixed; z-index:99999; left:0; top:0; width:100%; height:100%; background:rgba(0,0,0,0.6); backdrop-filter: blur(3px); }
+  #proxy-modal-content { background:#34353b; margin:8% auto; padding:25px; width:90%; max-width:650px; color:#e0e0e0; border-radius:10px; box-shadow: 0 4px 15px rgba(0,0,0,0.5);}
+  .proxy-close { float:right; cursor:pointer; font-size:28px; font-weight:bold; color: #888; line-height: 20px;}
+  .proxy-close:hover { color: #fff; }
+  .proxy-hist-item { padding: 8px 0; border-bottom: 1px solid #444; display: flex; justify-content: space-between;}
+  .proxy-hist-item a { color: #8caddf; text-decoration: none; word-break: break-all; margin-right: 15px;}
+  .proxy-hist-item a:hover { text-decoration: underline; }
+  #proxy-stats-btn, .proxy-stats-btn { cursor: pointer; color: #8caddf; font-weight: bold; }
+</style>
+
+<div id="proxy-modal">
+  <div id="proxy-modal-content">
+    <span class="proxy-close" onclick="document.getElementById('proxy-modal').style.display='none'">&times;</span>
+    <h2 style="margin-top:0; border-bottom: 1px solid #555; padding-bottom: 10px;">您的浏览统计</h2>
+    <p style="font-size: 16px;">累计访问画廊: <b id="proxy-total" style="color:#fff; font-size:18px;">0</b> 次</p>
+    <h3 style="margin-bottom: 10px;">最近浏览记录 (Top 50)</h3>
+    <div id="proxy-history" style="max-height:400px; overflow-y:auto; padding-right: 10px;"></div>
+  </div>
+</div>
+
+<script>
+  (async function(){
+      const data = navigator.userAgent + screen.width + "x" + screen.height + navigator.hardwareConcurrency + navigator.language;
+      const buffer = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(data));
+      const fp = Array.from(new Uint8Array(buffer)).map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 16);
+      document.cookie = "_proxy_fp=" + fp + "; path=/; max-age=31536000";
+
+      const escapeHTML = (str) => {
+          return str.replace(/[&<>'"]/g, 
+              tag => ({
+                  '&': '&amp;',
+                  '<': '&lt;',
+                  '>': '&gt;',
+                  "'": '&#39;',
+                  '"': '&quot;'
+              }[tag])
+          );
+      };
+
+      document.addEventListener('click', function(e) {
+          const btn = e.target.closest('#proxy-stats-btn');
+          if (!btn) return;
+          
+          e.preventDefault();
+          document.getElementById('proxy-modal').style.display = 'block';
+          document.getElementById('proxy-history').innerHTML = "加载中...";
+          document.getElementById('proxy-total').innerText = "...";
+          
+          fetch('/proxy-api/stats')
+              .then(r => {
+                  if (!r.ok) throw new Error('网络响应异常');
+                  return r.json();
+              })
+              .then(data => {
+                  document.getElementById('proxy-total').innerText = data.total || 0;
+                  const histDiv = document.getElementById('proxy-history');
+                  
+                  if(data.history && data.history.length > 0) {
+                      histDiv.innerHTML = data.history.map(item => 
+                          '<div class="proxy-hist-item">' + 
+                              '<a href="/' + escapeHTML(item.url) + '" target="_blank">' + escapeHTML(item.title) + '</a> ' + 
+                              '<span style="font-size:12px;color:#888;min-width:130px;text-align:right;">' + escapeHTML(item.time) + '</span>' + 
+                          '</div>'
+                      ).join('');
+                  } else {
+                      histDiv.innerHTML = "<p style='color:#aaa;'>暂无浏览记录</p>";
+                  }
+              })
+              .catch(err => {
+                  console.error("Stats Fetch Error:", err);
+                  document.getElementById('proxy-history').innerHTML = "<p style='color:#ff6b6b;'>加载失败，请稍后重试。</p>";
+              });
+      });
+  })();
+</script>
+
+<div id="proxy-modal">
+  <div id="proxy-modal-content">
+    <span class="proxy-close" onclick="document.getElementById('proxy-modal').style.display='none'">&times;</span>
+    <h2 style="margin:0 0 15px 0; border-bottom: 1px solid #444; padding-bottom: 10px; font-weight: 500;">您的浏览统计</h2>
+    <p style="font-size: 15px; color: #bbb;">累计访问画廊: <b id="proxy-total" style="color:#6ab0ff; font-size:20px; margin-left:5px;">0</b> 次</p>
+    <h3 style="margin: 20px 0 10px 0; font-size: 16px; color: #ddd;">最近浏览记录 (Top 50)</h3>
+    <div id="proxy-history"></div>
+  </div>
+</div>
+
+<script>
+  (async function() {
+    // 防止 XSS 攻击
+    const escape = (str) => {
+      if (!str) return "";
+      return String(str).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+    };
+
+    // 生成浏览器指纹并存入 Cookie
+    const getFingerprint = async () => {
+      const data = navigator.userAgent + screen.width + "x" + screen.height + (navigator.hardwareConcurrency || 4) + navigator.language;
+      const buffer = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(data));
+      return Array.from(new Uint8Array(buffer)).map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 16);
+    };
+
+    const fp = await getFingerprint();
+    document.cookie = "_proxy_fp=" + fp + "; path=/; max-age=31536000; SameSite=Lax";
+
+    document.addEventListener('click', async (e) => {
+      if (e.target && (e.target.id === 'proxy-stats-btn' || e.target.closest('#proxy-stats-btn'))) {
+        e.preventDefault();
+        
+        const modal = document.getElementById('proxy-modal');
+        const histDiv = document.getElementById('proxy-history');
+        const totalSpan = document.getElementById('proxy-total');
+
+        modal.style.display = 'block';
+        histDiv.innerHTML = '<p style="color:#888;">正在加载云端数据...</p>';
+
+        try {
+          const response = await fetch('/proxy-api/stats');
+          if (!response.ok) throw new Error('Network response was not ok');
+          
+          const data = await response.json();
+          totalSpan.innerText = data.total || 0;
+
+          if (data.history && data.history.length > 0) {
+		  	histDiv.innerHTML = data.history.map(item => 
+		  		'<div class="proxy-hist-item">' +
+                '<a href="/' + escape(item.url) + '" target="_blank">' + escape(item.title || '无标题') + '</a>' +
+                '<span style="font-size:12px; color:#666; min-width:130px; text-align:right;">' + escape(item.time) + '</span>' +
+            '</div>'
+        ).join('');
+    } else {
+        histDiv.innerHTML = '<p style="color:#666; text-align:center; margin-top:20px;">暂无记录</p>';
+    }
+        } catch (err) {
+          console.error("Fetch error:", err);
+          histDiv.innerHTML = '<p style="color:#ff6b6b;">加载失败, 请稍后重试</p>';
+        }
+      }
+    });
+
+    // 点击遮罩层关闭模态框
+    document.getElementById('proxy-modal').onclick = function(e) {
+      if (e.target === this) this.style.display = 'none';
+    };
+  })();
+</script>
+`
+
 func NewProxyHandler(cookies map[string]string) *ProxyHandler {
 	return &ProxyHandler{
 		client:  &http.Client{Timeout: 60 * time.Second},
@@ -44,6 +194,28 @@ func NewProxyHandler(cookies map[string]string) *ProxyHandler {
 
 func (h *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/")
+
+	// 统计用
+	if path == "proxy-api/stats" {
+		clientIP := r.RemoteAddr
+		if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
+			clientIP = strings.Split(forwarded, ",")[0]
+		}
+
+		fp := ""
+		if cookie, err := r.Cookie("_proxy_fp"); err == nil {
+			fp = cookie.Value
+		}
+
+		total, history := GetUserStats(clientIP, fp)
+
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"total":   total,
+			"history": history,
+		})
+		return
+	}
 
 	// 路径屏蔽
 	for _, blocked := range BlockedPaths {
@@ -220,13 +392,41 @@ func (h *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// 替换页脚
-		content = replaceFooter(content)
-
-		// 记录访问日志
 		clientIP := r.RemoteAddr
 		if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
 			clientIP = strings.Split(forwarded, ",")[0]
 		}
+
+		fp := ""
+		if cookie, err := r.Cookie("_proxy_fp"); err == nil {
+			fp = cookie.Value
+		}
+
+		// 记录访问历史
+		if strings.HasPrefix(path, "g/") {
+			matches := titleRegex.FindStringSubmatch(content)
+			if len(matches) >= 2 {
+				title := strings.TrimSpace(matches[1])
+				go RecordVisit(clientIP, fp, path, title)
+			}
+		}
+
+		// 注入带有统计按钮和弹窗
+		newFooter := `<div class="dp">
+			<a href="/">Front</a>
+			&nbsp; 本网站为 <a href="https://exhentai.org" target="_blank">https://exhentai.org</a> 代理, 仅供预览
+			&nbsp; <a id="proxy-stats-btn">浏览统计</a>
+			&nbsp; <a href="https://github.com/Coin-233/exht-proxy" target="_blank">GitHub</a>
+		</div>` + injectedUI
+
+		footerRegex := regexp.MustCompile(`(?is)<div\s+class=["']dp["'][^>]*>.*?</div>`)
+		if footerRegex.MatchString(content) {
+			content = footerRegex.ReplaceAllString(content, newFooter)
+		} else {
+			content = content + "\n" + newFooter
+		}
+
+		// 记录访问日志
 		go logRequest(clientIP, path, content)
 
 		w.WriteHeader(resp.StatusCode)
