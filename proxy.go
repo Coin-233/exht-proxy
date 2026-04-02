@@ -19,6 +19,10 @@ var (
 	apikeyRegex  = regexp.MustCompile(`var\s+apikey\s*=\s*["'][^"']+["'];`)
 	onionRegex   = regexp.MustCompile(`(?is)<h1 class="ih">ExHentai\.org\s*-\s*<a href="[^"]*\.onion">.*?</a>\s*&nbsp;<a href="[^"]*">\[\?\]</a></h1>`)
 
+	headRegex      = regexp.MustCompile(`(?i)(<head[^>]*>)`)
+	cfBeaconRegex  = regexp.MustCompile(`(?is)<script[^>]*cloudflareinsights\.com[^>]*>.*?</script>`)
+	cfCommentRegex = regexp.MustCompile(`(?is)`)
+
 	// 汉化字典
 	translations   map[string]string
 	jsTranslations map[string]string
@@ -47,6 +51,20 @@ const injectedUI = `
   .proxy-hist-item a:hover { text-decoration: underline; }
   #proxy-stats-btn, .proxy-stats-btn { cursor: pointer; color: #8caddf; font-weight: bold; }
 </style>
+
+// 移动端适配
+@media screen and (max-width: 768px) {
+    body { min-width: auto !important; padding: 5px; }
+    .ido, .itg, table { width: 100% !important; max-width: 100% !important; }
+    .itc td { display: inline-block; margin: 2px; }
+    input[name="f_search"] { width: 100% !important; box-sizing: border-box; margin-bottom: 5px; }
+    #searchbox form > div { display: flex; flex-wrap: wrap; justify-content: center; gap: 5px; }
+    img { max-width: 100%; height: auto; }
+    #i3 img { max-width: 100% !important; width: auto !important; height: auto !important; }
+    .ptt, .ptb { margin: 5px auto; }
+    .sn div { display: inline-block; margin: 2px; }
+    .gl1t { width: auto !important; }
+  }
 
 <div id="proxy-modal">
   <div id="proxy-modal-content">
@@ -390,6 +408,14 @@ func (h *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		for eng, chs := range translations {
 			content = strings.ReplaceAll(content, eng, chs)
 		}
+
+		// 去除 beacon 追踪
+		content = cfBeaconRegex.ReplaceAllString(content, "")
+		content = cfCommentRegex.ReplaceAllString(content, "")
+
+		// 注入 viewpoint
+		viewportMeta := "$1\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no\">"
+		content = headRegex.ReplaceAllString(content, viewportMeta)
 
 		// 替换页脚
 		clientIP := r.RemoteAddr
