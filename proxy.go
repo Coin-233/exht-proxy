@@ -52,20 +52,6 @@ const injectedUI = `
   #proxy-stats-btn, .proxy-stats-btn { cursor: pointer; color: #8caddf; font-weight: bold; }
 </style>
 
-// 移动端适配
-@media screen and (max-width: 768px) {
-    body { min-width: auto !important; padding: 5px; }
-    .ido, .itg, table { width: 100% !important; max-width: 100% !important; }
-    .itc td { display: inline-block; margin: 2px; }
-    input[name="f_search"] { width: 100% !important; box-sizing: border-box; margin-bottom: 5px; }
-    #searchbox form > div { display: flex; flex-wrap: wrap; justify-content: center; gap: 5px; }
-    img { max-width: 100%; height: auto; }
-    #i3 img { max-width: 100% !important; width: auto !important; height: auto !important; }
-    .ptt, .ptb { margin: 5px auto; }
-    .sn div { display: inline-block; margin: 2px; }
-    .gl1t { width: auto !important; }
-  }
-
 <div id="proxy-modal">
   <div id="proxy-modal-content">
     <span class="proxy-close" onclick="document.getElementById('proxy-modal').style.display='none'">&times;</span>
