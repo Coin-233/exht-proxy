@@ -322,8 +322,11 @@ const mobileViewHTML = `
 
         function getFinalHref(origHref, pageNum) {
             if (currentMode === 'mpv') {
-                if (globalMpvBase) return '/viewer?url=' + encodeURIComponent(globalMpvBase) + '&page=' + pageNum;
-                else return '/viewer?url=' + encodeURIComponent(lastLoadedUrl) + '&page=' + pageNum;
+                if (globalMpvBase) {
+                    return '/viewer?url=' + encodeURIComponent(globalMpvBase) + '#' + pageNum;
+                } else {
+                    return '/viewer?url=' + encodeURIComponent(lastLoadedUrl) + '#' + pageNum;
+                }
             }
             return origHref;
         }
@@ -613,7 +616,7 @@ const mobileViewerHTML = `
         const urlParams = new URLSearchParams(window.location.search);
         const rawUrl = urlParams.get('url');
         const mpvUrl = rawUrl ? rawUrl.replace('/g/', '/mpv/') : '';
-        let currentPage = parseInt(urlParams.get('page')) || 1;
+        let currentPage = parseInt(window.location.hash.replace('#', '')) || parseInt(urlParams.get('page')) || 1;
 
         let gid = '';
         let mpvkey = '';
@@ -743,7 +746,7 @@ const mobileViewerHTML = `
             currentPage = page;
             
             if (pushState) {
-                window.history.replaceState({page}, '', '/viewer?url=' + encodeURIComponent(rawUrl) + '&page=' + page);
+                window.history.replaceState({page}, '', '#' + page);
             }
 
             document.getElementById('pageCounter').innerText = page + " / " + imageList.length;
