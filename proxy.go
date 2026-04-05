@@ -28,6 +28,218 @@ var (
 	jsTranslations map[string]string
 )
 
+// 手机视图
+const mobileAppHTML = `
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ExHentai Mobile</title>
+    <style>
+        body { background: #1f2022; color: #f3f3f3; font-family: sans-serif; margin: 0; padding-bottom: 20px; }
+        .header { position: sticky; top: 0; padding: 10px; background: #2a2b2e; display: flex; gap: 8px; z-index: 100; box-shadow: 0 2px 10px rgba(0,0,0,0.5); }
+        .header input { flex: 1; min-width: 0; padding: 10px; border-radius: 4px; border: none; background: #444; color: white; font-size: 15px; }
+        .header button { padding: 0 15px; background: #ed2553; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; }
+        .opt-btn { background: #444 !important; }
+        
+        .options-panel { display: none; padding: 12px; background: #2a2b2e; border-bottom: 2px solid #ed2553; }
+        .options-panel.open { display: block; }
+        .cats { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+        .cat-chip { padding: 6px 12px; border-radius: 15px; background: #111; color: #888; font-size: 13px; cursor: pointer; user-select: none; border: 1px solid #333; transition: all 0.2s; }
+        .cat-chip.active { background: #ed2553; color: white; border-color: #ed2553; }
+
+        #resultCount { display: none; text-align: center; font-size: 13px; color: #aaa; padding: 10px; background: #1f2022; border-bottom: 1px solid #333; }
+
+        .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; padding: 10px; }
+        .card { background: #2a2b2e; border-radius: 6px; overflow: hidden; display: flex; flex-direction: column; text-decoration: none; color: white; }
+        .card img { width: 100%; aspect-ratio: 7/10; object-fit: cover; display: block; background: #111; }
+        .card .title { padding: 8px; font-size: 13px; text-align: center; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+        
+        .loading { text-align: center; padding: 40px; color: #888; grid-column: 1 / -1; }
+        .pagination { display: flex; justify-content: center; gap: 10px; padding: 10px; }
+        .pagination button { padding: 10px 20px; background: #34353b; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 15px; }
+        .pagination button:disabled { opacity: 0.5; cursor: not-allowed; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <input type="text" id="searchInput" placeholder="搜索画廊..." onkeypress="if(event.key === 'Enter') doSearch()">
+        <button onclick="doSearch()">搜索</button>
+        <button class="opt-btn" onclick="toggleOpts()">选项</button>
+    </div>
+
+    <div class="options-panel" id="optionsPanel">
+        <div class="cats" id="catContainer"></div>
+    </div>
+    
+    <div id="resultCount"></div>
+    
+    <div class="grid" id="galleryGrid">
+        <div class="loading">正在加载数据...</div>
+    </div>
+
+    <div class="pagination" id="pagination" style="display: none;">
+        <button id="prevBtn" onclick="loadPage(prevUrl)">上一页</button>
+        <button id="nextBtn" onclick="loadPage(nextUrl)">下一页</button>
+    </div>
+
+    <script>
+        let prevUrl = '';
+        let nextUrl = '';
+
+        const categories = [
+            { name: '同人志', val: 2 }, { name: '漫画', val: 4 }, { name: '画师 CG', val: 8 },
+            { name: '游戏 CG', val: 16 }, { name: '欧美', val: 512 }, { name: '非 H', val: 256 },
+            { name: '图集', val: 32 }, { name: 'Cosplay', val: 64 }, { name: '亚洲色情', val: 128 },
+            { name: '杂项', val: 1 }
+        ];
+
+        const urlParams = new URLSearchParams(window.location.search);
+        let currentCats = urlParams.has('f_cats') ? parseInt(urlParams.get('f_cats')) : 767; 
+        
+        if (urlParams.has('f_search')) {
+            document.getElementById('searchInput').value = urlParams.get('f_search');
+        }
+
+        const catContainer = document.getElementById('catContainer');
+        categories.forEach(c => {
+            const el = document.createElement('div');
+            if ((currentCats & c.val) === 0) el.classList.add('active');
+            el.className = 'cat-chip ' + (el.classList.contains('active') ? 'active' : '');
+            el.dataset.val = c.val;
+            el.innerText = c.name;
+            el.onclick = () => el.classList.toggle('active');
+            catContainer.appendChild(el);
+        });
+
+        function toggleOpts() {
+            document.getElementById('optionsPanel').classList.toggle('open');
+        }
+
+        async function loadPage(queryStr, pushState = true) {
+            if (!queryStr) return;
+            const grid = document.getElementById('galleryGrid');
+            const pagination = document.getElementById('pagination');
+            const resCount = document.getElementById('resultCount');
+            
+            grid.innerHTML = '<div class="loading">解析中，请稍候...</div>';
+            pagination.style.display = 'none';
+            resCount.style.display = 'none';
+            window.scrollTo(0, 0);
+
+            if (pushState) {
+                window.history.pushState({}, '', '/mobile' + queryStr);
+            }
+
+            try {
+                const res = await fetch('/' + queryStr);
+                const text = await res.text();
+                const doc = new DOMParser().parseFromString(text, 'text/html');
+                
+                // 搜索结果统计
+                const pTags = Array.from(doc.querySelectorAll('p, div'));
+                for (const p of pTags) {
+                    const t = p.innerText;
+                    if ((t.includes('找到') || t.includes('Found about') || t.includes('Showing')) && (t.includes('结果') || t.includes('results'))) {
+                        const nums = t.match(/[\d,]+/g);
+                        if (nums && nums.length > 0) {
+                            resCount.innerText = '找到约 ' + nums[0] + ' 个结果';
+                            resCount.style.display = 'block';
+                            break;
+                        }
+                    }
+                }
+
+                //暴力找画廊
+                let html = '';
+                const seenUrls = new Set();
+                
+                doc.querySelectorAll('a[href*="/g/"]').forEach(a => {
+                    const href = a.getAttribute('href');
+                    if(seenUrls.has(href)) return; 
+                    
+                    const container = a.closest('tr') || a.closest('td') || a.closest('div.gld') || a.parentElement;
+                    if(!container) return;
+                    
+                    const imgNode = container.querySelector('img');
+                    const imgSrc = imgNode ? (imgNode.getAttribute('data-src') || imgNode.getAttribute('src')) : null;
+                    
+                    const glink = container.querySelector('.glink');
+                    let title = '';
+                    if (glink) {
+                        title = glink.innerText.trim();
+                    } else {
+                        const textLinks = Array.from(container.querySelectorAll('a')).filter(l => l.innerText.trim().length > 0);
+                        if (textLinks.length > 0) {
+                            title = textLinks[0].innerText.trim();
+                        } else {
+                            title = imgNode ? (imgNode.getAttribute('title') || imgNode.getAttribute('alt')) : '';
+                        }
+                    }
+                    
+                    if (title && title !== '') {
+                        seenUrls.add(href);
+                        const fallbackImg = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9IiMzMzMiLz48dGV4dCB4PSI1MCUiIHk9IjUwJSIgZmlsbD0iIzg4OCIgZm9udC1mYW1pbHk9InNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTQiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj7ml6DlsIHpnaI8L3RleHQ+PC9zdmc+";
+                        html += '<a class="card" href="' + href + '"><img src="' + (imgSrc || fallbackImg) + '" loading="lazy" onerror="this.src=\'' + fallbackImg + '\'"><div class="title">' + title + '</div></a>';
+                    }
+                });
+
+                if(html === '') {
+                    grid.innerHTML = '<div class="loading">未找到画廊。<br><br>请确保您的账号在电脑版设置中开启了【扩展视图】或【缩略图】模式</div>';
+                    return;
+                }
+
+                grid.innerHTML = html;
+
+                const pagerLinks = Array.from(doc.querySelectorAll('table.ptt a, table.ptb a, .searchnav a'));
+                if (pagerLinks.length > 0) {
+                    const prevNode = pagerLinks.find(a => a.innerText.includes('<') || a.innerText.includes('前') || a.innerText.includes('Prev'));
+                    const nextNode = pagerLinks.find(a => a.innerText.includes('>') || a.innerText.includes('后') || a.innerText.includes('Next'));
+                    
+                    prevUrl = prevNode ? new URL(prevNode.getAttribute('href'), window.location.origin).search : '';
+                    nextUrl = nextNode ? new URL(nextNode.getAttribute('href'), window.location.origin).search : '';
+                    
+                    document.getElementById('prevBtn').disabled = !prevUrl;
+                    document.getElementById('nextBtn').disabled = !nextUrl;
+                    pagination.style.display = 'flex';
+                }
+
+            } catch (err) {
+                grid.innerHTML = '<div class="loading">加载失败, 请检查网络.</div>';
+            }
+        }
+
+        function doSearch() {
+            const keyword = document.getElementById('searchInput').value;
+            let cats = 0;
+            
+            document.querySelectorAll('.cat-chip:not(.active)').forEach(chip => {
+                cats += parseInt(chip.dataset.val);
+            });
+
+            let queryStr = '?';
+            if (keyword) queryStr += 'f_search=' + encodeURIComponent(keyword) + '&';
+            if (cats > 0) queryStr += 'f_cats=' + cats;
+            
+            queryStr = queryStr.replace(/[?&]$/, ''); 
+
+            document.getElementById('optionsPanel').classList.remove('open');
+            loadPage(queryStr);
+        }
+
+        window.addEventListener('popstate', () => {
+            loadPage(window.location.search, false);
+        });
+
+        let initQuery = window.location.search;
+        if (!initQuery) initQuery = '?f_cats=' + currentCats; 
+        loadPage(initQuery, false);
+    </script>
+</body>
+</html>
+`
+
 // 定义用于解析 JSON 的结构体
 type TranslationsConfig struct {
 	HTML map[string]string `json:"html"`
@@ -198,6 +410,13 @@ func NewProxyHandler(cookies map[string]string) *ProxyHandler {
 
 func (h *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/")
+
+	if path == "mobile" {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(mobileAppHTML))
+		return
+	}
 
 	// 统计用
 	if path == "proxy-api/stats" {
@@ -395,13 +614,23 @@ func (h *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			content = strings.ReplaceAll(content, eng, chs)
 		}
 
+		isMobile := regexp.MustCompile(`(?i)(android|iphone|ipad|mobile)`).MatchString(r.UserAgent())
+		// 如果是移动设备 且访问的是主页或搜索页 注入横幅
+		if isMobile && (path == "" || strings.HasPrefix(path, "?")) {
+			banner := `<div style="position:fixed;top:0;left:0;width:100%;background:#ed2553;text-align:center;padding:12px;z-index:999999;box-shadow:0 2px 10px rgba(0,0,0,0.5);">
+				<a href="/mobile" style="color:white;text-decoration:none;font-size:16px;font-weight:bold;display:block;">检测到手机端, 点击进入专属 UI</a>
+			</div>`
+			bodyRegex := regexp.MustCompile(`(?i)(<body[^>]*>)`)
+			content = bodyRegex.ReplaceAllString(content, "${1}\n"+banner)
+		}
+
 		// 去除 beacon 追踪
 		content = cfBeaconRegex.ReplaceAllString(content, "")
 		content = cfCommentRegex.ReplaceAllString(content, "")
 
-		// 注入 viewpoint
-		viewportMeta := "$1\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no\">"
-		content = headRegex.ReplaceAllString(content, viewportMeta)
+		// // 注入 viewpoint
+		// viewportMeta := "$1\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no\">"
+		// content = headRegex.ReplaceAllString(content, viewportMeta)
 
 		// 替换页脚
 		clientIP := r.RemoteAddr
