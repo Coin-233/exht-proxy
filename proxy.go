@@ -247,7 +247,7 @@ const mobileViewHTML = `
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>画廊详情 - ExHentai Mobile</title>
+    <title>加载中...</title>
     <style>
         body { background: #1f2022; color: #f3f3f3; font-family: sans-serif; margin: 0; padding-bottom: 30px; }
         .header { position: sticky; top: 0; padding: 12px; background: #2a2b2e; border-bottom: 2px solid #ed2553; z-index: 100; display: flex; align-items: center; box-shadow: 0 2px 10px rgba(0,0,0,0.5); }
@@ -299,7 +299,7 @@ const mobileViewHTML = `
 </head>
 <body>
     <div class="header">
-        <button class="back-btn" onclick="history.back()">❮ 返回</button>
+        <button class="back-btn" onclick="handleBack()">❮ 返回</button>
         <div class="header-title" id="headTitle">加载中...</div>
     </div>
 
@@ -312,36 +312,31 @@ const mobileViewHTML = `
         let globalMpvBase = '';
         let currentMode = localStorage.getItem('preferredReadMode') || 'mpv';
 
+        function handleBack() {
+            if (window.history.length > 1) {
+                window.history.back();
+            } else {
+                window.location.replace('/mobile');
+            }
+        }
+
         function getFinalHref(origHref, pageNum) {
             if (currentMode === 'mpv') {
-                if (globalMpvBase) {
-                    return '/viewer?url=' + encodeURIComponent(globalMpvBase) + '&page=' + pageNum;
-                } else {
-                    return '/viewer?url=' + encodeURIComponent(lastLoadedUrl) + '&page=' + pageNum;
-                }
+                if (globalMpvBase) return '/viewer?url=' + encodeURIComponent(globalMpvBase) + '&page=' + pageNum;
+                else return '/viewer?url=' + encodeURIComponent(lastLoadedUrl) + '&page=' + pageNum;
             }
-            // 普通查看模式 直接前往原站普通的图片阅读页
             return origHref;
         }
 
-        // 模式切换监听
         function onModeChange(newMode) {
             currentMode = newMode;
             localStorage.setItem('preferredReadMode', newMode);
-            
-            // 实时更新所有预览图链接
             document.querySelectorAll('.thumb-wrap').forEach(a => {
-                const orig = a.getAttribute('data-orig');
-                const page = a.getAttribute('data-page');
-                a.href = getFinalHref(orig, page);
+                a.href = getFinalHref(a.getAttribute('data-orig'), a.getAttribute('data-page'));
             });
-            
-            // 同步更新顶部按钮
             const readBtn = document.querySelector('.read-btn');
             const firstThumb = document.querySelector('.thumb-wrap');
-            if (readBtn && firstThumb) {
-                readBtn.href = firstThumb.href;
-            }
+            if (readBtn && firstThumb) readBtn.href = firstThumb.href;
         }
 
         async function loadGallery(targetUrl, pushState = true) {
@@ -359,7 +354,9 @@ const mobileViewHTML = `
                 
                 const gn = doc.querySelector('#gn') ? doc.querySelector('#gn').innerText : '未知标题';
                 const gj = doc.querySelector('#gj') ? doc.querySelector('#gj').innerText : '';
+            
                 document.getElementById('headTitle').innerText = gn;
+                document.title = gn;
 
                 // 提取封面和大图
                 let coverUrl = '';
@@ -396,15 +393,10 @@ const mobileViewHTML = `
                     const href = a.getAttribute('href');
                     const pageMatch = href.match(/-(\d+)$/);
                     const pageNum = pageMatch ? pageMatch[1] : '1';
-                    
                     const finalHref = getFinalHref(href, pageNum);
                     const thumbImg = a.querySelector('img');
                     const thumbDiv = a.querySelector('div[style]');
-                    let inner = '';
-                    if (thumbImg) inner = '<img src=\"' + (thumbImg.getAttribute('src')||thumbImg.getAttribute('data-src')) + '\">';
-                    else if (thumbDiv) inner = '<div style=\"' + thumbDiv.getAttribute('style') + '\"></div>';
-                    
-                    // 存储原始链接和页码以便切换
+                    let inner = thumbImg ? '<img src=\"' + (thumbImg.getAttribute('src')||thumbImg.getAttribute('data-src')) + '\">' : (thumbDiv ? '<div style=\"' + thumbDiv.getAttribute('style') + '\"></div>' : '');
                     thumbsHtml += '<a class=\"thumb-wrap\" href=\"' + finalHref + '\" data-orig=\"' + href + '\" data-page=\"' + pageNum + '\">' + inner + '</a>';
                 });
 
@@ -413,10 +405,7 @@ const mobileViewHTML = `
                 const ptb = doc.querySelector('.ptb') || doc.querySelector('.ptt');
                 if (ptb) {
                     ptb.querySelectorAll('*').forEach(el => el.removeAttribute('onclick'));
-                    ptb.querySelectorAll('a').forEach(a => {
-                        const h = a.getAttribute('href');
-                        if(h) a.setAttribute('href', '/m-view?url=' + encodeURIComponent(h));
-                    });
+                    ptb.querySelectorAll('a').forEach(a => a.setAttribute('href', '/m-view?url=' + encodeURIComponent(a.getAttribute('href'))));
                     paginationHtml = '<div class=\"pagination\">' + ptb.outerHTML + '</div>';
                 }
 
@@ -544,7 +533,7 @@ const mobileViewerHTML = `
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>阅读器 - ExHentai Mobile</title>
+    <title>加载中...</title>
     <style>
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; color: #fff; overflow: hidden; font-family: sans-serif; user-select: none; -webkit-user-select: none; }
         
@@ -668,10 +657,10 @@ const mobileViewerHTML = `
         }
 
         function goBack() {
-            if (returnUrl) {
-                window.location.href = returnUrl;
-            } else {
+            if (window.history.length > 1) {
                 window.history.back();
+            } else if (returnUrl) {
+                window.location.replace(returnUrl);
             }
         }
 
@@ -686,6 +675,12 @@ const mobileViewerHTML = `
             try {
                 const res = await fetch(mpvUrl);
                 const text = await res.text();
+
+                const titleMatch = text.match(/<title>(.*?)<\/title>/i);
+                if (titleMatch) {
+                    let extractedTitle = titleMatch[1].replace(/ - ExHentai\.org$/i, '').trim();
+                    document.title = extractedTitle;
+                }
 
                 const gidMatch = text.match(/var gid\s*=\s*(\d+)/);
                 const mpvkeyMatch = text.match(/var mpvkey\s*=\s*"([^"]+)"/);
