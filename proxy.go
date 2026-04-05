@@ -181,7 +181,7 @@ const mobileAppHTML = `
                     if (title && title !== '') {
                         seenUrls.add(href);
                         const fallbackImg = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9IiMzMzMiLz48dGV4dCB4PSI1MCUiIHk9IjUwJSIgZmlsbD0iIzg4OCIgZm9udC1mYW1pbHk9InNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTQiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj7ml6DlsIHpnaI8L3RleHQ+PC9zdmc+";
-                        html += '<a class="card" href="' + href + '"><img src="' + (imgSrc || fallbackImg) + '" loading="lazy" onerror="this.src=\'' + fallbackImg + '\'"><div class="title">' + title + '</div></a>';
+                        html += '<a class="card" href="/m-view?url=' + encodeURIComponent(href) + '"><img src="' + (imgSrc || fallbackImg) + '" loading="lazy" onerror="this.src=\'' + fallbackImg + '\'"><div class="title">' + title + '</div></a>';
                     }
                 });
 
@@ -235,6 +235,625 @@ const mobileAppHTML = `
         let initQuery = window.location.search;
         if (!initQuery) initQuery = '?f_cats=' + currentCats; 
         loadPage(initQuery, false);
+    </script>
+</body>
+</html>
+`
+
+// 专属移动版画廊详情
+const mobileViewHTML = `
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>画廊详情 - ExHentai Mobile</title>
+    <style>
+        body { background: #1f2022; color: #f3f3f3; font-family: sans-serif; margin: 0; padding-bottom: 30px; }
+        .header { position: sticky; top: 0; padding: 12px; background: #2a2b2e; border-bottom: 2px solid #ed2553; z-index: 100; display: flex; align-items: center; box-shadow: 0 2px 10px rgba(0,0,0,0.5); }
+        .back-btn { background: none; border: none; color: #f3f3f3; font-size: 16px; font-weight: bold; cursor: pointer; padding: 0 15px 0 0; }
+        .header-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; font-size: 15px; }
+
+        .container { padding: 15px; }
+        .loading { text-align: center; padding: 40px; color: #888; }
+        
+        /* 顶部信息区 */
+        .info-section { display: flex; flex-direction: column; align-items: center; margin-bottom: 20px; }
+        .cover { width: 100%; max-width: 320px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); margin-bottom: 15px; background:#111; }
+        .title-main { font-size: 16px; font-weight: bold; text-align: center; margin-bottom: 5px; color: #fff; }
+        .title-sub { font-size: 13px; text-align: center; color: #aaa; margin-bottom: 10px; }
+        .meta-info { font-size: 12px; color: #888; text-align: center; background: #2a2b2e; padding: 8px; border-radius: 6px; width: 100%; box-sizing: border-box; }
+
+        /*  阅读模式按钮组  */
+        .read-group { display: flex; gap: 8px; margin-bottom: 20px; }
+        .read-btn { flex: 1; background: #ed2553; color: white; text-align: center; padding: 14px 0; border-radius: 6px; font-size: 16px; font-weight: bold; text-decoration: none; box-shadow: 0 4px 10px rgba(237, 37, 83, 0.3); }
+        .read-select { background: #34353b; color: white; border: 1px solid #444; border-radius: 6px; padding: 0 10px; font-size: 14px; outline: none; }
+
+        /* 标签区 */
+        .tags-section { background: #2a2b2e; border-radius: 6px; padding: 12px; margin-bottom: 20px; }
+        .tag-group { display: flex; align-items: flex-start; margin-bottom: 8px; }
+        .tag-cat { font-size: 12px; color: #888; width: 75px; flex-shrink: 0; padding-top: 5px; text-transform: capitalize; }
+        .tag-items { display: flex; flex-wrap: wrap; gap: 6px; }
+        .tag-chip { background: #34353b; color: #ddd; padding: 4px 8px; border-radius: 4px; font-size: 12px; border: 1px solid #444; }
+
+        /* 预览图网格 */
+        .thumbs-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(105px, 1fr)); gap: 8px; margin-bottom: 20px; scroll-margin-top: 65px; }
+        .thumb-wrap { display: flex; align-items: center; justify-content: center; overflow: hidden; border-radius: 4px; border: 1px solid #333; background: #111; aspect-ratio: 7/10; }
+        .thumb-wrap img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .thumb-wrap div { zoom: 0.75; } 
+
+        /* 翻页 */
+        .pagination { display: flex; justify-content: center; overflow-x: auto; padding: 10px 0; background: #2a2b2e; border-radius: 6px; margin-bottom: 20px; }
+        .pagination table { border-collapse: collapse; }
+        .pagination td { padding: 0; }
+        .pagination a, .pagination span { display: block; padding: 8px 12px; color: #fff; text-decoration: none; }
+        .pagination .ptds { background: #ed2553; border-radius: 4px; font-weight: bold; }
+
+        /* 评论区 */
+        .comments-section h3 { font-size: 15px; margin: 0 0 10px 0; color: #ccc; border-bottom: 1px solid #333; padding-bottom: 5px; }
+        .comment { background: #2a2b2e; border-radius: 6px; padding: 10px; margin-bottom: 10px; font-size: 13px; line-height: 1.5; word-break: break-all; }
+        .c-head { margin-bottom: 8px; border-bottom: 1px dashed #444; padding-bottom: 6px; display: flex; align-items: center; flex-wrap: wrap; }
+        .c-body a { color: #ed2553; }
+        .c-body img { max-width: 100%; height: auto; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <button class="back-btn" onclick="history.back()">❮ 返回</button>
+        <div class="header-title" id="headTitle">加载中...</div>
+    </div>
+
+    <div class="container" id="content">
+        <div class="loading">正在提取画廊数据, 请稍候...</div>
+    </div>
+
+    <script>
+        let lastLoadedUrl = '';
+        let globalMpvBase = '';
+        let currentMode = localStorage.getItem('preferredReadMode') || 'mpv';
+
+        function getFinalHref(origHref, pageNum) {
+            if (currentMode === 'mpv') {
+                if (globalMpvBase) {
+                    return '/viewer?url=' + encodeURIComponent(globalMpvBase) + '&page=' + pageNum;
+                } else {
+                    return '/viewer?url=' + encodeURIComponent(lastLoadedUrl) + '&page=' + pageNum;
+                }
+            }
+            // 普通查看模式 直接前往原站普通的图片阅读页
+            return origHref;
+        }
+
+        // 模式切换监听
+        function onModeChange(newMode) {
+            currentMode = newMode;
+            localStorage.setItem('preferredReadMode', newMode);
+            
+            // 实时更新所有预览图链接
+            document.querySelectorAll('.thumb-wrap').forEach(a => {
+                const orig = a.getAttribute('data-orig');
+                const page = a.getAttribute('data-page');
+                a.href = getFinalHref(orig, page);
+            });
+            
+            // 同步更新顶部按钮
+            const readBtn = document.querySelector('.read-btn');
+            const firstThumb = document.querySelector('.thumb-wrap');
+            if (readBtn && firstThumb) {
+                readBtn.href = firstThumb.href;
+            }
+        }
+
+        async function loadGallery(targetUrl, pushState = true) {
+            if (!targetUrl) return;
+            if (pushState) window.history.pushState({url: targetUrl}, '', '/m-view?url=' + encodeURIComponent(targetUrl));
+            lastLoadedUrl = targetUrl;
+
+            document.getElementById('content').innerHTML = '<div class="loading">正在提取画廊数据，请稍候...</div>';
+            window.scrollTo(0, 0);
+
+            try {
+                const res = await fetch(targetUrl);
+                const text = await res.text();
+                const doc = new DOMParser().parseFromString(text, 'text/html');
+                
+                const gn = doc.querySelector('#gn') ? doc.querySelector('#gn').innerText : '未知标题';
+                const gj = doc.querySelector('#gj') ? doc.querySelector('#gj').innerText : '';
+                document.getElementById('headTitle').innerText = gn;
+
+                // 提取封面和大图
+                let coverUrl = '';
+                const gd1Img = doc.querySelector('#gd1 img');
+                if (gd1Img) coverUrl = gd1Img.getAttribute('src');
+                else {
+                    const gd1Div = doc.querySelector('#gd1 div[style]');
+                    if (gd1Div) {
+                        const match = gd1Div.getAttribute('style').match(/url\((['"]?)(.*?)\1\)/);
+                        if (match) coverUrl = match[2];
+                    }
+                }
+
+                const upNode = doc.querySelector('#gdn a');
+                const uploader = upNode ? upNode.innerText : '未知';
+                const dateMatch = text.match(/\d{4}-\d{2}-\d{2} \d{2}:\d{2}/);
+                const posted = dateMatch ? dateMatch[0] : '未知';
+
+                // 提取 MPV 链接并保存到全局
+                const mpvNode = Array.from(doc.querySelectorAll('a')).find(a => a.getAttribute('href') && a.getAttribute('href').includes('/mpv/'));
+                globalMpvBase = mpvNode ? mpvNode.getAttribute('href') : '';
+
+                // 标签提取
+                let tagsHtml = '';
+                doc.querySelectorAll('#taglist tr').forEach(tr => {
+                    const cat = tr.querySelector('.tc') ? tr.querySelector('.tc').innerText.replace(':', '') : '';
+                    const chips = Array.from(tr.querySelectorAll('a[href*=\"/tag/\"]')).map(a => '<span class=\"tag-chip\">' + a.innerText + '</span>').join('');
+                    if (cat && chips) tagsHtml += '<div class=\"tag-group\"><div class=\"tag-cat\">' + cat + '</div><div class=\"tag-items\">' + chips + '</div></div>';
+                });
+
+                // 预览图提取
+                let thumbsHtml = '';
+                Array.from(doc.querySelectorAll('#gdt a')).forEach((a, index) => {
+                    const href = a.getAttribute('href');
+                    const pageMatch = href.match(/-(\d+)$/);
+                    const pageNum = pageMatch ? pageMatch[1] : '1';
+                    
+                    const finalHref = getFinalHref(href, pageNum);
+                    const thumbImg = a.querySelector('img');
+                    const thumbDiv = a.querySelector('div[style]');
+                    let inner = '';
+                    if (thumbImg) inner = '<img src=\"' + (thumbImg.getAttribute('src')||thumbImg.getAttribute('data-src')) + '\">';
+                    else if (thumbDiv) inner = '<div style=\"' + thumbDiv.getAttribute('style') + '\"></div>';
+                    
+                    // 存储原始链接和页码以便切换
+                    thumbsHtml += '<a class=\"thumb-wrap\" href=\"' + finalHref + '\" data-orig=\"' + href + '\" data-page=\"' + pageNum + '\">' + inner + '</a>';
+                });
+
+                // 翻页提取
+                let paginationHtml = '';
+                const ptb = doc.querySelector('.ptb') || doc.querySelector('.ptt');
+                if (ptb) {
+                    ptb.querySelectorAll('*').forEach(el => el.removeAttribute('onclick'));
+                    ptb.querySelectorAll('a').forEach(a => {
+                        const h = a.getAttribute('href');
+                        if(h) a.setAttribute('href', '/m-view?url=' + encodeURIComponent(h));
+                    });
+                    paginationHtml = '<div class=\"pagination\">' + ptb.outerHTML + '</div>';
+                }
+
+                let commentsHtml = '';
+                doc.querySelectorAll('div[id^=\"comment_\"]').forEach(cBody => {
+                    const wrapper = cBody.parentElement;
+                    const authorLink = wrapper.querySelector('a[href*=\"/uploader/\"]');
+                    const author = authorLink ? authorLink.innerText.trim() : '未知用户';
+                    let timeStr = '';
+                    const c3 = wrapper.querySelector('.c3');
+                    if (c3) {
+                        let rawText = c3.innerText;
+                        if (authorLink) rawText = rawText.replace(authorLink.innerText, '');
+                        timeStr = rawText.replace(/Posted on|by:|提交于|由/gi, '').trim().replace(/(,$|^,)/g, '').trim();
+                    }
+                    let badgeHtml = '';
+                    if (/Uploader Comment|上传者/i.test(wrapper.innerText)) badgeHtml = '<span style=\"color:#ed2553; border: 1px solid #ed2553; padding: 1px 4px; border-radius: 3px; font-size: 10px; margin-left: 8px;\">上传者</span>';
+                    else {
+                        const scoreMatch = wrapper.innerText.match(/(?:Score|分数)[\s\S]*?([+-]\d+)/i);
+                        if (scoreMatch) badgeHtml = '<span style=\"color:' + (scoreMatch[1].includes('+') ? '#4caf50' : '#f44336') + '; font-weight:bold; margin-left: 8px; font-size: 12px;\">[' + scoreMatch[1] + ']</span>';
+                    }
+                    let bHtml = cBody.innerHTML.replace(/href=\"([^\"]*\/g\/[^\"]*)\"/gi, (m, p1) => 'href=\"/m-view?url=' + encodeURIComponent(p1) + '\"');
+                    commentsHtml += '<div class=\"comment\"><div class=\"c-head\"><span style=\"font-weight:bold; color:#ddd; font-size:13px;\">' + author + '</span>' + badgeHtml + '<span style=\"margin-left:auto; color:#666; font-size:11px;\">' + timeStr + '</span></div><div class=\"c-body\">' + bHtml + '</div></div>';
+                });
+
+                let html = '';
+                html += '<div class=\"info-section\">';
+                if(coverUrl) html += '<img class=\"cover\" src=\"' + coverUrl + '\">';
+                html += '<div class=\"title-main\">' + gn + '</div>';
+                if(gj) html += '<div class=\"title-sub\">' + gj + '</div>';
+                html += '<div class=\"meta-info\">上传者: ' + uploader + ' &nbsp;|&nbsp; ' + posted + '</div>';
+                html += '</div>';
+
+                // 开始阅读按钮 + 下拉框
+                const firstThumb = Array.from(doc.querySelectorAll('#gdt a'))[0];
+                const initialBtnHref = firstThumb ? getFinalHref(firstThumb.getAttribute('href'), '1') : '#';
+                
+                html += '<div class=\"read-group\">' +
+                            '<a class=\"read-btn\" id=\"mainReadBtn\" href=\"' + initialBtnHref + '\">▶ 开始阅读</a>' +
+                            '<select class=\"read-select\" onchange=\"onModeChange(this.value)\">' +
+                                '<option value=\"mpv\" ' + (currentMode === 'mpv' ? 'selected' : '') + '>多页查看器</option>' +
+                                '<option value=\"normal\" ' + (currentMode === 'normal' ? 'selected' : '') + '>普通查看</option>' +
+                            '</select>' +
+                        '</div>';
+
+                if (tagsHtml) html += '<div class=\"tags-section\">' + tagsHtml + '</div>';
+                html += '<div class=\"thumbs-grid\" id=\"thumbsGrid\">' + thumbsHtml + '</div>';
+                html += '<div id=\"paginationWrap\">' + paginationHtml + '</div>';
+                if (commentsHtml) html += '<div class=\"comments-section\"><h3>评论 (' + doc.querySelectorAll('div[id^=\"comment_\"]').length + ')</h3>' + commentsHtml + '</div>';
+
+                document.getElementById('content').innerHTML = html;
+
+            } catch (err) {
+                document.getElementById('content').innerHTML = '<div class=\"loading\">加载失败: ' + err.message + '</div>';
+            }
+        }
+
+        async function paginate(targetUrl, proxyUrl, pushState = true) {
+            if (pushState) window.history.pushState({url: targetUrl}, '', proxyUrl);
+            lastLoadedUrl = targetUrl;
+            const grid = document.getElementById('thumbsGrid');
+            if (grid) {
+                grid.innerHTML = '<div class=\"loading\" style=\"grid-column: 1 / -1; padding: 30px 0;\">正在拉取...</div>';
+                grid.scrollIntoView({behavior: 'smooth', block: 'start'});
+            }
+            try {
+                const res = await fetch(targetUrl);
+                const text = await res.text();
+                const doc = new DOMParser().parseFromString(text, 'text/html');
+                let thumbsHtml = '';
+                Array.from(doc.querySelectorAll('#gdt a')).forEach((a) => {
+                    const href = a.getAttribute('href');
+                    const pageNum = (href.match(/-(\d+)$/) || [0, '1'])[1];
+                    const finalHref = getFinalHref(href, pageNum);
+                    const thumbImg = a.querySelector('img');
+                    const thumbDiv = a.querySelector('div[style]');
+                    let inner = thumbImg ? '<img src=\"' + (thumbImg.getAttribute('src')||thumbImg.getAttribute('data-src')) + '\">' : (thumbDiv ? '<div style=\"' + thumbDiv.getAttribute('style') + '\"></div>' : '');
+                    thumbsHtml += '<a class=\"thumb-wrap\" href=\"' + finalHref + '\" data-orig=\"' + href + '\" data-page=\"' + pageNum + '\">' + inner + '</a>';
+                });
+                let pPageHtml = '';
+                const ptb = doc.querySelector('.ptb') || doc.querySelector('.ptt');
+                if (ptb) {
+                    ptb.querySelectorAll('*').forEach(el => el.removeAttribute('onclick'));
+                    ptb.querySelectorAll('a').forEach(a => a.setAttribute('href', '/m-view?url=' + encodeURIComponent(a.getAttribute('href'))));
+                    pPageHtml = '<div class=\"pagination\">' + ptb.outerHTML + '</div>';
+                }
+                if (grid) grid.innerHTML = thumbsHtml;
+                const pWrap = document.getElementById('paginationWrap');
+                if (pWrap) pWrap.innerHTML = pPageHtml;
+            } catch (err) { console.error(err); }
+        }
+
+        document.addEventListener('click', function(e) {
+            const link = e.target.closest('a');
+            if (link && link.getAttribute('href') && link.getAttribute('href').startsWith('/m-view?url=')) {
+                e.preventDefault();
+                const nextTarget = new URL(link.href).searchParams.get('url');
+                if (nextTarget) {
+                    if (link.closest('.pagination')) paginate(nextTarget, link.href, true);
+                    else loadGallery(nextTarget, true);
+                }
+            }
+        });
+
+        window.addEventListener('popstate', (e) => {
+            const url = new URLSearchParams(window.location.search).get('url');
+            if (url) {
+                const prev = new URL(lastLoadedUrl, 'http://x.com');
+                const next = new URL(url, 'http://x.com');
+                if (prev.pathname === next.pathname) paginate(url, window.location.search, false);
+                else loadGallery(url, false);
+            }
+        });
+
+        loadGallery(new URLSearchParams(window.location.search).get('url'), false);
+    </script>
+</body>
+</html>
+`
+
+// 专属移动版阅读器
+const mobileViewerHTML = `
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>阅读器 - ExHentai Mobile</title>
+    <style>
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; color: #fff; overflow: hidden; font-family: sans-serif; user-select: none; -webkit-user-select: none; }
+        
+        .ui-bar { position: absolute; left: 0; width: 100%; background: rgba(30, 30, 35, 0.95); display: flex; justify-content: space-between; align-items: center; padding: 12px 15px; box-sizing: border-box; z-index: 100; transition: transform 0.3s; backdrop-filter: blur(5px); }
+        .header { top: 0; transform: translateY(-100%); border-bottom: 1px solid #444; }
+        .footer { bottom: 0; transform: translateY(100%); border-top: 1px solid #444; justify-content: center; }
+        .ui-bar.show { transform: translateY(0); }
+        
+        .btn { background: none; border: none; color: #f3f3f3; font-size: 16px; font-weight: bold; cursor: pointer; padding: 5px; }
+        .page-counter { font-size: 15px; font-weight: bold; letter-spacing: 1px; }
+
+        .viewer-container { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; position: relative; }
+        .viewer-img { max-width: 100%; max-height: 100%; object-fit: contain; display: none; }
+        
+        .loader { width: 40px; height: 40px; border: 4px solid rgba(255,255,255,0.3); border-top: 4px solid #ed2553; border-radius: 50%; animation: spin 1s linear infinite; position: absolute; z-index: 10; box-shadow: 0 0 10px rgba(0,0,0,0.5); display: none; }
+        .error-msg { position: absolute; color: #ed2553; text-align: center; padding: 20px; font-size: 14px; background: rgba(0,0,0,0.8); border-radius: 8px; display: none; z-index: 20; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        .settings-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 200; display: none; align-items: center; justify-content: center; backdrop-filter: blur(2px); }
+        .settings-content { background: #2a2b2e; width: 85%; max-width: 400px; border-radius: 10px; padding: 20px; box-sizing: border-box; box-shadow: 0 4px 20px rgba(0,0,0,0.8); }
+        .settings-content h3 { margin-top: 0; border-bottom: 1px solid #444; padding-bottom: 10px; color: #fff; }
+        .setting-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        .setting-row select { background: #1f2022; color: #fff; border: 1px solid #555; padding: 6px 10px; border-radius: 4px; font-size: 14px; outline: none; }
+        .close-settings-btn { display: block; width: 100%; background: #ed2553; color: white; border: none; padding: 12px; border-radius: 6px; font-size: 16px; font-weight: bold; margin-top: 20px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <div class="ui-bar header" id="header">
+        <button class="btn" onclick="goBack()">❮ 返回</button>
+        <div class="page-counter" id="pageCounter">1 / -</div>
+        <button class="btn" onclick="openSettings()">⚙ 设置</button>
+    </div>
+
+    <div class="ui-bar footer" id="footer">
+        <div style="font-size:12px; color:#aaa;" id="imgInfo">加载中...</div>
+    </div>
+
+    <div class="viewer-container" id="viewer" onclick="handleTap(event)">
+        <div class="loader" id="loader"></div>
+        <div class="error-msg" id="errorMsg"></div>
+        <img class="viewer-img" id="mainImg" />
+    </div>
+
+    <div class="settings-modal" id="settingsModal" onclick="closeSettings(event)">
+        <div class="settings-content" onclick="event.stopPropagation()">
+            <h3>阅读器设置</h3>
+            <div class="setting-row">
+                <span>预加载页数</span>
+                <select id="preloadSelect" onchange="saveSettings()">
+                    <option value="1">1 页</option>
+					<option value="2">2 页</option>
+                    <option value="3">3 页</option>
+					<option value="4">4 页</option>
+                    <option value="5">5 页</option>
+                </select>
+            </div>
+            <div class="setting-row">
+                <span>点击屏幕左侧</span>
+                <select id="leftTapSelect" onchange="saveSettings()">
+                    <option value="prev">上一页</option>
+                    <option value="next">下一页</option>
+                </select>
+            </div>
+            <div class="setting-row">
+                <span>点击屏幕右侧</span>
+                <select id="rightTapSelect" onchange="saveSettings()">
+                    <option value="next">下一页</option>
+                    <option value="prev">上一页</option>
+                </select>
+            </div>
+            <p style="font-size:12px; color:#888; text-align:center;">提示：点击屏幕中间 40% 区域可呼出菜单</p>
+            <button class="close-settings-btn" onclick="closeSettings(event, true)">完成</button>
+        </div>
+    </div>
+
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const rawUrl = urlParams.get('url');
+        const mpvUrl = rawUrl ? rawUrl.replace('/g/', '/mpv/') : '';
+        let currentPage = parseInt(urlParams.get('page')) || 1;
+
+        let gid = '';
+        let mpvkey = '';
+        let imageList = []; 
+        let returnUrl = ''; 
+
+        let config = {
+            preloadCount: parseInt(localStorage.getItem('viewer_preload')) || 3,
+            leftTap: localStorage.getItem('viewer_left_tap') || 'prev',
+            rightTap: localStorage.getItem('viewer_right_tap') || 'next'
+        };
+
+        function initSettings() {
+            document.getElementById('preloadSelect').value = config.preloadCount;
+            document.getElementById('leftTapSelect').value = config.leftTap;
+            document.getElementById('rightTapSelect').value = config.rightTap;
+        }
+
+        function saveSettings() {
+            config.preloadCount = parseInt(document.getElementById('preloadSelect').value);
+            config.leftTap = document.getElementById('leftTapSelect').value;
+            config.rightTap = document.getElementById('rightTapSelect').value;
+            localStorage.setItem('viewer_preload', config.preloadCount);
+            localStorage.setItem('viewer_left_tap', config.leftTap);
+            localStorage.setItem('viewer_right_tap', config.rightTap);
+        }
+
+        function openSettings() {
+            document.getElementById('settingsModal').style.display = 'flex';
+        }
+
+        function closeSettings(e, force = false) {
+            if (force || e.target.id === 'settingsModal') {
+                document.getElementById('settingsModal').style.display = 'none';
+            }
+        }
+
+        function toggleUI() {
+            document.getElementById('header').classList.toggle('show');
+            document.getElementById('footer').classList.toggle('show');
+        }
+
+        function goBack() {
+            if (returnUrl) {
+                window.location.href = returnUrl;
+            } else {
+                window.history.back();
+            }
+        }
+
+        async function fetchMpvData() {
+            if (!mpvUrl) {
+                showError("缺少 URL 参数! ");
+                return;
+            }
+
+            returnUrl = '/m-view?url=' + encodeURIComponent(mpvUrl.replace('/mpv/', '/g/'));
+
+            try {
+                const res = await fetch(mpvUrl);
+                const text = await res.text();
+
+                const gidMatch = text.match(/var gid\s*=\s*(\d+)/);
+                const mpvkeyMatch = text.match(/var mpvkey\s*=\s*"([^"]+)"/);
+                const imagelistMatch = text.match(/var imagelist\s*=\s*(\[.*?\]);/);
+
+                if (!gidMatch || !mpvkeyMatch || !imagelistMatch) {
+                    showError("无法从页面提取 API 密钥，该画廊可能不支持多页查看器.");
+                    return;
+                }
+
+                gid = gidMatch[1];
+                mpvkey = mpvkeyMatch[1];
+                imageList = JSON.parse(imagelistMatch[1]); 
+
+                goToPage(currentPage, false);
+            } catch (err) {
+                showError("初始化画廊数据失败: " + err.message);
+            }
+        }
+
+        async function fetchImageUrl(page) {
+            if (page < 1 || page > imageList.length) return null;
+            let imgData = imageList[page - 1];
+            
+            if (imgData.url) return imgData;
+
+            const payload = {
+                method: "imagedispatch",
+                gid: parseInt(gid),
+                page: page,
+                imgkey: imgData.k,
+                mpvkey: mpvkey
+            };
+
+            try {
+                const res = await fetch('/api.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+                
+                if (data && data.i) {
+                    imgData.url = data.i;
+                    imgData.info = (data.d || "未知尺寸") + "  |  " + imgData.n;
+                    return imgData;
+                }
+                return null;
+            } catch (err) {
+                return null;
+            }
+        }
+
+        let loaderTimeout = null;
+
+        async function goToPage(page, pushState = true) {
+            if (page < 1) page = 1;
+            if (page > imageList.length) page = imageList.length;
+
+            currentPage = page;
+            
+            if (pushState) {
+                window.history.replaceState({page}, '', '/viewer?url=' + encodeURIComponent(rawUrl) + '&page=' + page);
+            }
+
+            document.getElementById('pageCounter').innerText = page + " / " + imageList.length;
+            const imgEl = document.getElementById('mainImg');
+            const loader = document.getElementById('loader');
+            const errorEl = document.getElementById('errorMsg');
+            const infoEl = document.getElementById('imgInfo');
+
+            errorEl.style.display = 'none';
+            infoEl.innerText = "加载中...";
+            
+            // 延迟 50ms 显示加载圈
+            if (loaderTimeout) clearTimeout(loaderTimeout);
+            loaderTimeout = setTimeout(() => {
+                if (currentPage === page) loader.style.display = 'block';
+            }, 50);
+
+            const imgData = await fetchImageUrl(page);
+            
+            if (!imgData || !imgData.url) {
+                clearTimeout(loaderTimeout);
+                loader.style.display = 'none';
+                showError("图片加载失败, 可能是配额限制或网络错误. ");
+                return;
+            }
+
+            const tmpImg = new Image();
+            
+            // 封装一个直接上屏的函数
+            const applyImage = () => {
+                if (currentPage === page) {
+                    clearTimeout(loaderTimeout);
+                    loader.style.display = 'none';
+                    imgEl.src = imgData.url;
+                    imgEl.style.display = 'block';
+                    infoEl.innerText = imgData.info;
+                }
+            };
+
+            tmpImg.onload = applyImage;
+            
+            tmpImg.onerror = () => {
+                if (currentPage === page) {
+                    clearTimeout(loaderTimeout);
+                    loader.style.display = 'none';
+                    showError("图片资源获取成功, 但浏览器加载失败. ");
+                }
+            }
+            
+            tmpImg.src = imgData.url;
+
+            // 利用 complete 属性判断是否已经存在于浏览器本地内存中
+            // 如果已经在内存中, 立刻强行渲染, 不再等 onload 回调
+            if (tmpImg.complete) {
+                applyImage();
+            }
+
+            triggerPreload();
+        }
+
+        async function triggerPreload() {
+            for (let i = 1; i <= config.preloadCount; i++) {
+                let targetPage = currentPage + i;
+                if (targetPage <= imageList.length) {
+                    fetchImageUrl(targetPage).then(data => {
+                        if (data && data.url) {
+                            new Image().src = data.url;
+                        }
+                    });
+                }
+            }
+        }
+
+        function showError(msg) {
+            document.getElementById('loader').style.display = 'none';
+            const err = document.getElementById('errorMsg');
+            err.innerText = msg;
+            err.style.display = 'block';
+        }
+
+        function handleTap(e) {
+            const width = window.innerWidth;
+            const x = e.clientX;
+            
+            if (x < width * 0.3) {
+                executeAction(config.leftTap);
+            } else if (x > width * 0.7) {
+                executeAction(config.rightTap);
+            } else {
+                toggleUI();
+            }
+        }
+
+        function executeAction(action) {
+            if (action === 'prev' && currentPage > 1) {
+                goToPage(currentPage - 1);
+            } else if (action === 'next' && currentPage < imageList.length) {
+                goToPage(currentPage + 1);
+            } else if (action === 'prev' && currentPage === 1) {
+                document.getElementById('header').classList.add('show');
+            }
+        }
+
+        initSettings();
+        fetchMpvData();
     </script>
 </body>
 </html>
@@ -415,6 +1034,18 @@ func (h *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(mobileAppHTML))
+		return
+	}
+	if path == "m-view" {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(mobileViewHTML))
+		return
+	}
+	if path == "viewer" {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(mobileViewerHTML))
 		return
 	}
 
