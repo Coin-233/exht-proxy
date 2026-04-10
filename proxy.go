@@ -296,6 +296,13 @@ const mobileViewHTML = `
         .c-head { margin-bottom: 8px; border-bottom: 1px dashed #444; padding-bottom: 6px; display: flex; align-items: center; flex-wrap: wrap; }
         .c-body a { color: #ed2553; }
         .c-body img { max-width: 100%; height: auto; }
+
+        /* 标签详情弹窗 */
+        .tag-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 200; display: none; align-items: center; justify-content: center; backdrop-filter: blur(2px); }
+        .tag-modal-content { background: #2a2b2e; width: 80%; max-width: 320px; border-radius: 10px; padding: 20px; box-sizing: border-box; box-shadow: 0 4px 20px rgba(0,0,0,0.8); text-align: center; }
+        .tag-modal-title { font-size: 18px; font-weight: bold; color: #ed2553; margin-bottom: 5px; }
+        .tag-modal-eng { font-size: 12px; color: #888; margin-bottom: 15px; font-family: monospace; }
+        .tag-modal-desc { font-size: 14px; color: #ddd; line-height: 1.5; text-align: left; max-height: 50vh; overflow-y: auto; }
     </style>
 </head>
 <body>
@@ -306,6 +313,14 @@ const mobileViewHTML = `
 
     <div class="container" id="content">
         <div class="loading">正在提取画廊数据, 请稍候...</div>
+    </div>
+
+    <div class="tag-modal" id="tagModal" onclick="this.style.display='none'">
+        <div class="tag-modal-content" onclick="event.stopPropagation()">
+            <div class="tag-modal-title" id="tmTitle">标签名</div>
+            <div class="tag-modal-eng" id="tmEng">namespace:tag</div>
+            <div class="tag-modal-desc" id="tmDesc">这里是标签的详细介绍...</div>
+        </div>
     </div>
 
     <script>
@@ -352,6 +367,13 @@ const mobileViewHTML = `
                 }
             }
             return origHref;
+        }
+
+        function showTagInfo(eng, chs, intro) {
+            document.getElementById('tmTitle').innerText = chs;
+            document.getElementById('tmEng').innerText = eng;
+            document.getElementById('tmDesc').innerText = intro || '暂无详细介绍。';
+            document.getElementById('tagModal').style.display = 'flex';
         }
 
         function onModeChange(newMode) {
@@ -420,22 +442,27 @@ const mobileViewHTML = `
                     
                     // 汉化左侧分类名
                     if (tagDB && tagDB["namespace:" + catEng]) {
-                        catChs = tagDB["namespace:" + catEng];
+                        catChs = tagDB["namespace:" + catEng].n;
                     }
 
                     const chips = Array.from(tr.querySelectorAll('a[href*=\"/tag/\"]')).map(a => {
                         const engTag = a.innerText;
                         let chsTag = engTag;
+                        let intro = '';
                         
                         if (tagDB) {
-                            if (tagDB[catEng + ":" + engTag]) {
-                                chsTag = tagDB[catEng + ":" + engTag];
+                            const fullKey = catEng + ":" + engTag;
+                            if (tagDB[fullKey]) {
+                                chsTag = tagDB[fullKey].n;
+                                intro = tagDB[fullKey].i;
                             } else if (tagDB[engTag]) {
-                                chsTag = tagDB[engTag];
+                                chsTag = tagDB[engTag].n;
+                                intro = tagDB[engTag].i;
                             }
                         }
-                        // 长按显示原文
-                        return '<span class=\"tag-chip\" title=\"' + engTag + '\">' + chsTag + '</span>';
+                        
+                        const safeIntro = intro.replace(/'/g, "\\'").replace(/"/g, "&quot;").replace(/\n/g, "<br>");
+                        return '<span class=\"tag-chip\" onclick=\"showTagInfo(\'' + catEng + ':' + engTag + '\', \'' + chsTag + '\', \'' + safeIntro + '\')\">' + chsTag + '</span>';
                     }).join('');
 
                     if (catEng && chips) tagsHtml += '<div class=\"tag-group\"><div class=\"tag-cat\">' + catChs + '</div><div class=\"tag-items\">' + chips + '</div></div>';
@@ -919,6 +946,12 @@ type ProxyHandler struct {
 	cookies map[string]string
 }
 
+// 翻译标签用
+type TagItem struct {
+	Name  string `json:"n"`
+	Intro string `json:"i"`
+}
+
 // 前端注入
 const injectedUI = `
 <style>
@@ -1082,7 +1115,8 @@ func InitTagDB() {
 		Data []struct {
 			Namespace string `json:"namespace"`
 			Data      map[string]struct {
-				Name string `json:"name"`
+				Name  string `json:"name"`
+				Intro string `json:"intro"`
 			} `json:"data"`
 		} `json:"data"`
 	}
@@ -1092,14 +1126,15 @@ func InitTagDB() {
 		return
 	}
 
-	tagMap := make(map[string]string)
+	tagMap := make(map[string]TagItem)
 	for _, ns := range db.Data {
 		for eng, tagData := range ns.Data {
-			// 保存 命名空间:标签 的完整格式
-			tagMap[ns.Namespace+":"+eng] = tagData.Name
-			// 同时保存一个不带命名空间的后备格式
+			item := TagItem{Name: tagData.Name, Intro: tagData.Intro}
+			// 保存 命名空间:标签
+			tagMap[ns.Namespace+":"+eng] = item
+			// 保存裸标签做后备
 			if _, exists := tagMap[eng]; !exists {
-				tagMap[eng] = tagData.Name
+				tagMap[eng] = item
 			}
 		}
 	}
@@ -1111,7 +1146,7 @@ func InitTagDB() {
 		"reclass": "重新分类", "other": "其他", "cosplayer": "Coser",
 	}
 	for k, v := range nsMap {
-		tagMap["namespace:"+k] = v
+		tagMap["namespace:"+k] = TagItem{Name: v, Intro: ""}
 	}
 
 	tagDBJSON, _ = json.Marshal(tagMap)
