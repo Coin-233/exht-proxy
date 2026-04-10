@@ -14,6 +14,9 @@ SHOW_LOG=1 PORT=<PORT> ./exht-proxy
 
 ## 功能
 
+- 访问统计 (根据 IP 与浏览器指纹)
+- 自定义移动视图 (画廊列表、详情、浏览界面)
+
 ### 已默认屏蔽
 
 - 画廊下载(压缩 / 种子)
@@ -33,6 +36,7 @@ SHOW_LOG=1 PORT=<PORT> ./exht-proxy
 ## TODO
 
 - [x] 持久化访问统计
-- 密码访问
-- 速率限制
-- 网页界面汉化 (半吊子)
+- [ ] 密码访问
+- [ ] 速率限制
+- [x] 网页界面汉化 (来自 [EhTagTranslation](https://github.com/EhTagTranslation/Database) )
+- [ ] 个人收藏
