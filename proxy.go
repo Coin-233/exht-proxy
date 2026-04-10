@@ -26,6 +26,7 @@ var (
 	// 汉化字典
 	translations   map[string]string
 	jsTranslations map[string]string
+	tagDBJSON      []byte
 )
 
 // 手机视图
@@ -312,6 +313,28 @@ const mobileViewHTML = `
         let globalMpvBase = '';
         let currentMode = localStorage.getItem('preferredReadMode') || 'mpv';
 
+        let tagDB = null;
+        async function loadTagDB() {
+            if (tagDB) return;
+            try {
+                const cached = localStorage.getItem('eh_tag_db');
+                const cacheTime = localStorage.getItem('eh_tag_db_time');
+                const now = Date.now();
+                if (cached && cacheTime && (now - parseInt(cacheTime) < 86400000)) {
+                    tagDB = JSON.parse(cached);
+                    return;
+                }
+                const res = await fetch('/proxy-api/tags');
+                tagDB = await res.json();
+                if (Object.keys(tagDB).length > 0) {
+                    localStorage.setItem('eh_tag_db', JSON.stringify(tagDB));
+                    localStorage.setItem('eh_tag_db_time', now.toString());
+                }
+            } catch (e) {
+                console.error("加载汉化标签库失败", e);
+            }
+        }
+
         function handleBack() {
             if (window.history.length > 1) {
                 window.history.back();
@@ -388,12 +411,34 @@ const mobileViewHTML = `
                 const mpvNode = Array.from(doc.querySelectorAll('a')).find(a => a.getAttribute('href') && a.getAttribute('href').includes('/mpv/'));
                 globalMpvBase = mpvNode ? mpvNode.getAttribute('href') : '';
 
-                // 标签提取
+                // 标签提取与自动汉化
+                await loadTagDB();
                 let tagsHtml = '';
                 doc.querySelectorAll('#taglist tr').forEach(tr => {
-                    const cat = tr.querySelector('.tc') ? tr.querySelector('.tc').innerText.replace(':', '') : '';
-                    const chips = Array.from(tr.querySelectorAll('a[href*=\"/tag/\"]')).map(a => '<span class=\"tag-chip\">' + a.innerText + '</span>').join('');
-                    if (cat && chips) tagsHtml += '<div class=\"tag-group\"><div class=\"tag-cat\">' + cat + '</div><div class=\"tag-items\">' + chips + '</div></div>';
+                    const catEng = tr.querySelector('.tc') ? tr.querySelector('.tc').innerText.replace(':', '') : '';
+                    let catChs = catEng;
+                    
+                    // 汉化左侧分类名
+                    if (tagDB && tagDB["namespace:" + catEng]) {
+                        catChs = tagDB["namespace:" + catEng];
+                    }
+
+                    const chips = Array.from(tr.querySelectorAll('a[href*=\"/tag/\"]')).map(a => {
+                        const engTag = a.innerText;
+                        let chsTag = engTag;
+                        
+                        if (tagDB) {
+                            if (tagDB[catEng + ":" + engTag]) {
+                                chsTag = tagDB[catEng + ":" + engTag];
+                            } else if (tagDB[engTag]) {
+                                chsTag = tagDB[engTag];
+                            }
+                        }
+                        // 长按显示原文
+                        return '<span class=\"tag-chip\" title=\"' + engTag + '\">' + chsTag + '</span>';
+                    }).join('');
+
+                    if (catEng && chips) tagsHtml += '<div class=\"tag-group\"><div class=\"tag-cat\">' + catChs + '</div><div class=\"tag-items\">' + chips + '</div></div>';
                 });
 
                 // 预览图提取
@@ -1024,6 +1069,55 @@ const injectedUI = `
 </script>
 `
 
+func InitTagDB() {
+	fmt.Println("正在拉取 EhTagTranslation 标签数据库...")
+	resp, err := http.Get("https://cdn.jsdelivr.net/gh/EhTagTranslation/DatabaseReleases/db.text.json")
+	if err != nil {
+		fmt.Println("获取标签数据库失败:", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	var db struct {
+		Data []struct {
+			Namespace string `json:"namespace"`
+			Data      map[string]struct {
+				Name string `json:"name"`
+			} `json:"data"`
+		} `json:"data"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&db); err != nil {
+		fmt.Println("解析标签数据库失败:", err)
+		return
+	}
+
+	tagMap := make(map[string]string)
+	for _, ns := range db.Data {
+		for eng, tagData := range ns.Data {
+			// 保存 命名空间:标签 的完整格式
+			tagMap[ns.Namespace+":"+eng] = tagData.Name
+			// 同时保存一个不带命名空间的后备格式
+			if _, exists := tagMap[eng]; !exists {
+				tagMap[eng] = tagData.Name
+			}
+		}
+	}
+
+	// 补充左侧命名空间分类的汉化
+	nsMap := map[string]string{
+		"artist": "画师", "character": "角色", "female": "女性", "male": "男性",
+		"parody": "原作", "group": "团队", "mixed": "混合", "language": "语言",
+		"reclass": "重新分类", "other": "其他", "cosplayer": "Coser",
+	}
+	for k, v := range nsMap {
+		tagMap["namespace:"+k] = v
+	}
+
+	tagDBJSON, _ = json.Marshal(tagMap)
+	fmt.Printf("标签数据库加载完成，共汉化 %d 条标签\n", len(tagMap))
+}
+
 func NewProxyHandler(cookies map[string]string) *ProxyHandler {
 	return &ProxyHandler{
 		client:  &http.Client{Timeout: 60 * time.Second},
@@ -1072,6 +1166,19 @@ func (h *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			"total":   total,
 			"history": history,
 		})
+		return
+	}
+
+	// 标签汉化
+	if path == "proxy-api/tags" {
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.Header().Set("Cache-Control", "public, max-age=86400")
+		if tagDBJSON == nil {
+			w.Write([]byte(`{}`))
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		w.Write(tagDBJSON)
 		return
 	}
 

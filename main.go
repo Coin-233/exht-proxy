@@ -79,6 +79,7 @@ func main() {
 	_ = godotenv.Load()
 	loadTranslations()
 	InitDB()
+	go InitTagDB()
 
 	ShowLog = os.Getenv("SHOW_LOG") == "1"
 	if ShowLog {
