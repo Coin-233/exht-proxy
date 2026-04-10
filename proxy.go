@@ -377,6 +377,12 @@ const mobileViewHTML = `
                 const uploader = upNode ? upNode.innerText : '未知';
                 const dateMatch = text.match(/\d{4}-\d{2}-\d{2} \d{2}:\d{2}/);
                 const posted = dateMatch ? dateMatch[0] : '未知';
+                let rating = '暂无';
+                const ratingNode = doc.querySelector('#rating_label');
+                if (ratingNode) {
+                    const rMatch = ratingNode.innerText.match(/[\d.]+/);
+                    rating = rMatch ? rMatch[0] : ratingNode.innerText;
+                }
 
                 // 提取 MPV 链接并保存到全局
                 const mpvNode = Array.from(doc.querySelectorAll('a')).find(a => a.getAttribute('href') && a.getAttribute('href').includes('/mpv/'));
@@ -439,7 +445,7 @@ const mobileViewHTML = `
                 if(coverUrl) html += '<img class=\"cover\" src=\"' + coverUrl + '\">';
                 html += '<div class=\"title-main\">' + gn + '</div>';
                 if(gj) html += '<div class=\"title-sub\">' + gj + '</div>';
-                html += '<div class=\"meta-info\">上传者: ' + uploader + ' &nbsp;|&nbsp; ' + posted + '</div>';
+                html += '<div class=\"meta-info\">评分: ' + rating + ' &nbsp;|&nbsp; 上传者: ' + uploader + ' &nbsp;|&nbsp; ' + posted + '</div>';
                 html += '</div>';
 
                 // 开始阅读按钮 + 下拉框

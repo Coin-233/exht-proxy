@@ -34,6 +34,7 @@ galleries from this page. === 个结果
 >Multi-Page Viewer< === >多页查看器<
 title="language:chinese">chinese< === title="language:chinese">汉语<
 >Disable Filters< === >关闭过滤<
+>Not Yet Rated< === >暂无<
 
 # 这是 JS 汉化字典
 [JS]
