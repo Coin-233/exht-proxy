@@ -491,25 +491,38 @@ const mobileViewHTML = `
                 }
 
                 let commentsHtml = '';
-                doc.querySelectorAll('div[id^=\"comment_\"]').forEach(cBody => {
+                doc.querySelectorAll('div[id^="comment_"]').forEach(cBody => {
                     const wrapper = cBody.parentElement;
-                    const authorLink = wrapper.querySelector('a[href*=\"/uploader/\"]');
-                    const author = authorLink ? authorLink.innerText.trim() : '未知用户';
+                    if (!wrapper) return;
+                    const authorLink = wrapper.querySelector('a[href*="/uploader/"]');
+                    const author = authorLink ? (authorLink.textContent || '').trim() : '未知用户';
                     let timeStr = '';
                     const c3 = wrapper.querySelector('.c3');
                     if (c3) {
-                        let rawText = c3.innerText;
-                        if (authorLink) rawText = rawText.replace(authorLink.innerText, '');
+                        let rawText = c3.textContent || '';
+                        if (authorLink) rawText = rawText.replace(authorLink.textContent || '', '');
                         timeStr = rawText.replace(/Posted on|by:|提交于|由/gi, '').trim().replace(/(,$|^,)/g, '').trim();
                     }
+                    const c7 = wrapper.querySelector('.c7');
+                    let votesHtml = c7 ? c7.innerHTML : '';
+                    const voteId = 'votes_' + cBody.id; 
+
                     let badgeHtml = '';
-                    if (/Uploader Comment|上传者/i.test(wrapper.innerText)) badgeHtml = '<span style=\"color:#ed2553; border: 1px solid #ed2553; padding: 1px 4px; border-radius: 3px; font-size: 10px; margin-left: 8px;\">上传者</span>';
-                    else {
-                        const scoreMatch = wrapper.innerText.match(/(?:Score|分数)[\s\S]*?([+-]\d+)/i);
-                        if (scoreMatch) badgeHtml = '<span style=\"color:' + (scoreMatch[1].includes('+') ? '#4caf50' : '#f44336') + '; font-weight:bold; margin-left: 8px; font-size: 12px;\">[' + scoreMatch[1] + ']</span>';
+                    const wrapperText = wrapper.textContent || '';
+                    if (/Uploader Comment|上传者/i.test(wrapperText)) {
+                        badgeHtml = '<span style="color:#ed2553; border: 1px solid #ed2553; padding: 1px 4px; border-radius: 3px; font-size: 10px; margin-left: 8px;">上传者</span>';
+                    } else {
+                        const scoreMatch = wrapperText.match(/(?:Score|分数)[\s\S]*?([+-]\d+)/i);
+                        if (scoreMatch) {
+                            const scoreColor = scoreMatch[1].includes('+') ? '#4caf50' : '#f44336';
+                            badgeHtml = '<span onclick="const v = document.getElementById(\'' + voteId + '\'); v.style.display = v.style.display === \'none\' ? \'block\' : \'none\'" style="color:' + scoreColor + '; font-weight:bold; margin-left: 8px; font-size: 12px; cursor: pointer;">[' + scoreMatch[1] + ']</span>';
+                        }
                     }
-                    let bHtml = cBody.innerHTML.replace(/href=\"([^\"]*\/g\/[^\"]*)\"/gi, (m, p1) => 'href=\"/m-view?url=' + encodeURIComponent(p1) + '\"');
-                    commentsHtml += '<div class=\"comment\"><div class=\"c-head\"><span style=\"font-weight:bold; color:#ddd; font-size:13px;\">' + author + '</span>' + badgeHtml + '<span style=\"margin-left:auto; color:#666; font-size:11px;\">' + timeStr + '</span></div><div class=\"c-body\">' + bHtml + '</div></div>';
+                    
+                    let bHtml = cBody.innerHTML.replace(/href="([^"]*\/g\/[^"]*)"/gi, (m, p1) => 'href="/m-view?url=' + encodeURIComponent(p1) + '"');
+                    let extraVotesDiv = votesHtml ? '<div id="' + voteId + '" style="display:none; margin-top:8px; padding-top:8px; border-top:1px dashed #444; font-size:11px; color:#aaa; line-height: 1.4;">' + votesHtml + '</div>' : '';
+
+                    commentsHtml += '<div class="comment"><div class="c-head"><span style="font-weight:bold; color:#ddd; font-size:13px;">' + author + '</span>' + badgeHtml + '<span style="margin-left:auto; color:#666; font-size:11px;">' + timeStr + '</span></div><div class="c-body">' + bHtml + extraVotesDiv + '</div></div>';
                 });
 
                 let html = '';
