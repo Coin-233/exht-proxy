@@ -671,7 +671,18 @@ const mobileViewerHTML = `
 <body>
     <div class="ui-bar header" id="header">
         <button class="btn" onclick="goBack()">❮ 返回</button>
-        <div class="page-counter" id="pageCounter">1 / -</div>
+        
+        <div class="page-counter" id="pageMenuBtn" onclick="toggleMenu(event)" style="cursor:pointer; display:flex; align-items:center; justify-content:center; gap:5px; position:relative;">
+            <span id="pageCounter">1 / -</span>
+            <span id="menuArrow" style="transition: transform 0.3s ease; font-size: 10px; display:inline-block;">▼</span>
+            
+            <div id="viewerMenu" style="display:none; position:absolute; top:45px; left:50%; transform:translateX(-50%); background:rgba(40,40,42,0.95); border:1px solid #555; border-radius:12px; padding:5px; text-align:center; flex-direction:column; z-index: 2000; box-shadow: 0 4px 20px rgba(0,0,0,0.8); backdrop-filter: blur(5px); min-width: 130px;">
+                <div onclick="downloadImage(event)" style="padding:12px; border-bottom:1px solid #444; color:#fff; font-size:14px;">下载图片</div>
+                <div onclick="reloadImage(event)" style="padding:12px; border-bottom:1px solid #444; color:#fff; font-size:14px;">重载图片</div>
+                <div onclick="loadOriginalImage(event)" style="padding:12px; color:#ed2553; font-weight:bold; font-size:14px;">查看原图</div>
+            </div>
+        </div>
+
         <button class="btn" onclick="openSettings()">⚙ 设置</button>
     </div>
 
@@ -766,7 +777,147 @@ const mobileViewerHTML = `
 
         function toggleUI() {
             document.getElementById('header').classList.toggle('show');
-            document.getElementById('footer').classList.toggle('show');
+            const footer = document.getElementById('footer');
+            footer.classList.toggle('show');
+            
+            if (!footer.classList.contains('show')) {
+                document.getElementById('viewerMenu').style.display = 'none';
+                document.getElementById('menuArrow').style.transform = 'rotate(0deg)';
+            }
+        }
+
+        function toggleMenu(e) {
+            if(e) e.stopPropagation();
+            const menu = document.getElementById('viewerMenu');
+            const arrow = document.getElementById('menuArrow');
+            if (menu.style.display === 'none' || menu.style.display === '') {
+                menu.style.display = 'flex';
+                arrow.style.transform = 'rotate(180deg)';
+            } else {
+                menu.style.display = 'none';
+                arrow.style.transform = 'rotate(0deg)';
+            }
+        }
+
+        async function downloadImage() {
+            toggleMenu();
+            const img = document.getElementById('mainImg');
+            if (!img.src) return;
+            
+            const infoEl = document.getElementById('imgInfo');
+            const oldText = infoEl.innerText;
+            infoEl.innerText = "正在打包下载...";
+            
+            try {
+                const res = await fetch(img.src);
+                const blob = await res.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = imageList[currentPage - 1].n || ('image_' + currentPage + '.jpg');
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                window.URL.revokeObjectURL(url);
+                infoEl.innerText = "下载成功";
+                setTimeout(() => { infoEl.innerText = oldText; }, 2000);
+            } catch (e) {
+                infoEl.innerText = "下载失败";
+                setTimeout(() => { infoEl.innerText = oldText; }, 2000);
+            }
+        }
+
+        function reloadImage() {
+            toggleMenu();
+            const img = document.getElementById('mainImg');
+            const loader = document.getElementById('loader');
+            if (!img.src) return;
+            
+            loader.style.display = 'block';
+            let urlObj;
+            try {
+                urlObj = new URL(img.src);
+            } catch(e) {
+                urlObj = new URL(img.src, window.location.origin);
+            }
+            urlObj.searchParams.set('_t', Date.now()); 
+            
+            const tmpImg = new Image();
+            tmpImg.onload = () => {
+                loader.style.display = 'none';
+                img.src = urlObj.toString();
+            };
+            tmpImg.onerror = () => {
+                loader.style.display = 'none';
+                showError("重载失败，请检查网络");
+            };
+            tmpImg.src = urlObj.toString();
+        }
+
+        async function loadOriginalImage(e) {
+            if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
+        
+            if (typeof toggleMenu === 'function') toggleMenu();
+
+            const img = document.getElementById('mainImg');
+            const infoEl = document.getElementById('imgInfo');
+            const loader = document.getElementById('loader');
+            
+            if (!imageList || !imageList[currentPage - 1]) return;
+            const imgData = imageList[currentPage - 1];
+            
+            loader.style.display = 'block';
+            infoEl.innerText = "正在通过 API 获取原图...";
+            
+            try {
+                const payload = {
+                    method: "imagedispatch",
+                    gid: parseInt(gid),
+                    page: currentPage,
+                    imgkey: imgData.k,
+                    mpvkey: mpvkey
+                };
+
+                const res = await fetch('/api.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+                
+                if (data && data.lf) {
+                    const targetUrl = window.location.origin + '/' + data.lf;
+                    
+                    infoEl.innerText = "原图拉取中...";
+                    const tmpImg = new Image();
+                    tmpImg.onload = () => {
+                        loader.style.display = 'none';
+                        img.src = targetUrl;
+                        
+                        let displayInfo = "";
+                        if (data.o) {
+                            displayInfo = data.o.replace(/^Download original\s+/, '').replace(/\s+source$/, '').trim();
+                        } else {
+                            displayInfo = tmpImg.width + " x " + tmpImg.height;
+                        }
+                        infoEl.innerText = displayInfo + " :: 原图";
+                        
+                        if (typeof resetZoom === 'function') resetZoom();
+                    };
+                    tmpImg.onerror = () => {
+                        loader.style.display = 'none';
+                        infoEl.innerText = "加载原图失败，可能是配额或网络问题";
+                    };
+                    tmpImg.src = targetUrl;
+                } else {
+                    loader.style.display = 'none';
+                    infoEl.innerText = "该图片未提供原图路径";
+                }
+            } catch (err) {
+                loader.style.display = 'none';
+                console.error(err);
+                infoEl.innerText = "API 请求失败";
+            }
         }
 
         function goBack() {
@@ -798,7 +949,7 @@ const mobileViewerHTML = `
                 const imagelistMatch = text.match(/var imagelist\s*=\s*(\[.*?\]);/);
 
                 if (!gidMatch || !mpvkeyMatch || !imagelistMatch) {
-                    showError("无法从页面提取 API 密钥，该画廊可能不支持多页查看器.");
+                    showError("无法从页面提取 API 密钥, 该画廊可能不支持多页查看器.");
                     return;
                 }
 
@@ -852,6 +1003,8 @@ const mobileViewerHTML = `
             if (page > imageList.length) page = imageList.length;
 
             currentPage = page;
+            document.getElementById('viewerMenu').style.display = 'none';
+            document.getElementById('menuArrow').style.transform = 'rotate(0deg)';
             resetZoom();
             
             window.history.replaceState({}, '', '/viewer/' + gid + '/' + token + '/' + page + '/');
