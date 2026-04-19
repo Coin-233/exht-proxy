@@ -557,12 +557,13 @@ const mobileViewHTML = `
             }
         }
 
-        async function paginate(targetUrl, proxyUrl, pushState = true) {
-            if (pushState) window.history.pushState({url: targetUrl}, '', proxyUrl);
+        async function paginate(targetUrl, proxyUrl) {
+            window.history.replaceState({url: targetUrl}, '', proxyUrl);
             lastLoadedUrl = targetUrl;
+
             const grid = document.getElementById('thumbsGrid');
             if (grid) {
-                grid.innerHTML = '<div class=\"loading\" style=\"grid-column: 1 / -1; padding: 30px 0;\">正在拉取...</div>';
+                grid.innerHTML = '<div class="loading" style="grid-column: 1 / -1; padding: 30px 0;">正在拉取...</div>';
                 grid.scrollIntoView({behavior: 'smooth', block: 'start'});
             }
             try {
