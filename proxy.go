@@ -713,6 +713,7 @@ const mobileViewerHTML = `
         let mpvkey = '';
         let imageList = []; 
         let returnUrl = ''; 
+        let galleryTitle = '';
 
         let config = {
             preloadCount: parseInt(localStorage.getItem('viewer_preload')) || 3,
@@ -772,8 +773,8 @@ const mobileViewerHTML = `
 
                 const titleMatch = text.match(/<title>(.*?)<\/title>/i);
                 if (titleMatch) {
-                    let extractedTitle = titleMatch[1].replace(/ - ExHentai\.org$/i, '').trim();
-                    document.title = extractedTitle;
+                    galleryTitle = titleMatch[1].replace(/ - ExHentai\.org$/i, '').trim();
+                    document.title = galleryTitle;
                 }
 
                 const gidMatch = text.match(/var gid\s*=\s*(\d+)/);
@@ -841,6 +842,9 @@ const mobileViewerHTML = `
             }
 
             document.getElementById('pageCounter').innerText = page + " / " + imageList.length;
+            if (galleryTitle) {
+                document.title = galleryTitle + " " + page + "/" + imageList.length;
+            }
             const imgEl = document.getElementById('mainImg');
             const loader = document.getElementById('loader');
             const errorEl = document.getElementById('errorMsg');
