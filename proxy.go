@@ -653,8 +653,8 @@ const mobileViewerHTML = `
         .btn { background: none; border: none; color: #f3f3f3; font-size: 16px; font-weight: bold; cursor: pointer; padding: 5px; }
         .page-counter { font-size: 15px; font-weight: bold; letter-spacing: 1px; }
 
-        .viewer-container { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; position: relative; }
-        .viewer-img { max-width: 100%; max-height: 100%; object-fit: contain; display: none; }
+        .viewer-container { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; position: relative; touch-action: none; }
+        .viewer-img { max-width: 100%; max-height: 100%; object-fit: contain; display: none; transform-origin: center center; will-change: transform; }
         
         .loader { width: 40px; height: 40px; border: 4px solid rgba(255,255,255,0.3); border-top: 4px solid #ed2553; border-radius: 50%; animation: spin 1s linear infinite; position: absolute; z-index: 10; box-shadow: 0 0 10px rgba(0,0,0,0.5); display: none; }
         .error-msg { position: absolute; color: #ed2553; text-align: center; padding: 20px; font-size: 14px; background: rgba(0,0,0,0.8); border-radius: 8px; display: none; z-index: 20; }
@@ -679,7 +679,7 @@ const mobileViewerHTML = `
         <div style="font-size:12px; color:#aaa;" id="imgInfo">加载中...</div>
     </div>
 
-    <div class="viewer-container" id="viewer" onclick="handleTap(event)">
+    <div class="viewer-container" id="viewer">
         <div class="loader" id="loader"></div>
         <div class="error-msg" id="errorMsg"></div>
         <img class="viewer-img" id="mainImg" />
@@ -852,6 +852,7 @@ const mobileViewerHTML = `
             if (page > imageList.length) page = imageList.length;
 
             currentPage = page;
+            resetZoom();
             
             window.history.replaceState({}, '', '/viewer/' + gid + '/' + token + '/' + page + '/');
 
@@ -939,6 +940,8 @@ const mobileViewerHTML = `
         }
 
         function handleTap(e) {
+            if (isDragging) return;
+
             const width = window.innerWidth;
             const x = e.clientX;
             
@@ -958,6 +961,156 @@ const mobileViewerHTML = `
                 goToPage(currentPage + 1);
             } else if (action === 'prev' && currentPage === 1) {
                 document.getElementById('header').classList.add('show');
+            }
+        }
+
+        let scale = 1;
+        let pointX = 0;
+        let pointY = 0;
+        let isDragging = false; 
+        
+        let initialPinchDistance = 0;
+        let initialScale = 1;
+        let lastTouchX = 0;
+        let lastTouchY = 0;
+
+        let touchStartTime = 0;
+        let touchStartX = 0;
+        let touchStartY = 0;
+        let hasMoved = false; 
+        let lastTapTime = 0;
+        let tapTimeout = null;
+        
+        const viewer = document.getElementById('viewer');
+        const img = document.getElementById('mainImg');
+
+        function setTransform() {
+            img.style.transform = 'translate(' + pointX + 'px, ' + pointY + 'px) scale(' + scale + ')';
+        }
+
+        function resetZoom() {
+            scale = 1; pointX = 0; pointY = 0;
+            img.style.transition = 'transform 0.2s ease'; 
+            setTransform();
+            setTimeout(() => { img.style.transition = 'none'; }, 200);
+        }
+
+        function getDistance(touches) {
+            return Math.hypot(touches[0].clientX - touches[1].clientX, touches[0].clientY - touches[1].clientY);
+        }
+
+        function getMidpoint(touches) {
+            return {
+                x: (touches[0].clientX + touches[1].clientX) / 2,
+                y: (touches[0].clientY + touches[1].clientY) / 2
+            };
+        }
+
+        viewer.addEventListener('touchstart', (e) => {
+            if (e.touches.length === 1) {
+                touchStartTime = Date.now();
+                touchStartX = e.touches[0].clientX;
+                touchStartY = e.touches[0].clientY;
+                hasMoved = false;
+                
+                if (scale > 1) {
+                    lastTouchX = e.touches[0].clientX;
+                    lastTouchY = e.touches[0].clientY;
+                    isDragging = false;
+                }
+            } else if (e.touches.length === 2) {
+                e.preventDefault(); // 双指操作时阻止默认事件
+                initialPinchDistance = getDistance(e.touches);
+                initialScale = scale;
+                const mid = getMidpoint(e.touches);
+                lastTouchX = mid.x;
+                lastTouchY = mid.y;
+                isDragging = true; 
+                hasMoved = true; 
+            }
+        }, { passive: false });
+
+        viewer.addEventListener('touchmove', (e) => {
+            if (e.touches.length === 1) {
+                // 滑动容差
+                if (Math.abs(e.touches[0].clientX - touchStartX) > 10 || Math.abs(e.touches[0].clientY - touchStartY) > 10) {
+                    hasMoved = true;
+                }
+                
+                if (scale > 1) {
+                    e.preventDefault(); 
+                    isDragging = true;
+                    pointX += e.touches[0].clientX - lastTouchX;
+                    pointY += e.touches[0].clientY - lastTouchY;
+                    lastTouchX = e.touches[0].clientX;
+                    lastTouchY = e.touches[0].clientY;
+                    setTransform();
+                }
+            } else if (e.touches.length === 2) {
+                e.preventDefault();
+                isDragging = true;
+                hasMoved = true;
+                
+                const currentDistance = getDistance(e.touches);
+                const newScale = Math.min(Math.max(0.2, initialScale * (currentDistance / initialPinchDistance)), 5);
+                const scaleRatio = newScale / scale;
+                const mid = getMidpoint(e.touches);
+                
+                const centerX = window.innerWidth / 2;
+                const centerY = window.innerHeight / 2;
+                
+                pointX -= (mid.x - centerX - pointX) * (scaleRatio - 1);
+                pointY -= (mid.y - centerY - pointY) * (scaleRatio - 1);
+                
+                pointX += (mid.x - lastTouchX);
+                pointY += (mid.y - lastTouchY);
+                
+                scale = newScale;
+                lastTouchX = mid.x;
+                lastTouchY = mid.y;
+                setTransform();
+            }
+        }, { passive: false });
+
+        viewer.addEventListener('touchend', (e) => {
+            if (e.touches.length === 0) {
+                if (scale < 1) {
+                    resetZoom();
+                } else if (!hasMoved && Date.now() - touchStartTime < 300) {
+                    // 触发一次轻触
+                    e.preventDefault(); 
+                    let currentTime = Date.now();
+                    
+                    // 双击判定窗口 250 毫秒内连续敲击两下
+                    if (currentTime - lastTapTime < 250) {
+                        clearTimeout(tapTimeout);
+                        resetZoom(); // 触发双击 恢复默认大小
+                        lastTapTime = 0; 
+                    } else {
+                        lastTapTime = currentTime;
+                        // 延迟 200ms 执行翻页 等待判断是否会发生双击
+                        tapTimeout = setTimeout(() => {
+                            handleTap({ clientX: touchStartX });
+                        }, 200);
+                    }
+                }
+                setTimeout(() => { isDragging = false; }, 50); 
+            } else if (e.touches.length === 1 && scale > 1) {
+                lastTouchX = e.touches[0].clientX;
+                lastTouchY = e.touches[0].clientY;
+            }
+        });
+
+        function handleTap(e) {
+            const width = window.innerWidth;
+            const x = e.clientX; 
+            
+            if (x < width * 0.3) {
+                executeAction(config.leftTap);
+            } else if (x > width * 0.7) {
+                executeAction(config.rightTap);
+            } else {
+                toggleUI();
             }
         }
 
