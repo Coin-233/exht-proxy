@@ -169,11 +169,11 @@ const mobileAppHTML = `
                     const glink = container.querySelector('.glink');
                     let title = '';
                     if (glink) {
-                        title = glink.innerText.trim();
+                        title = (glink.textContent || '').trim();
                     } else {
-                        const textLinks = Array.from(container.querySelectorAll('a')).filter(l => l.innerText.trim().length > 0);
+                        const textLinks = Array.from(container.querySelectorAll('a')).filter(l => (l.textContent || '').trim().length > 0);
                         if (textLinks.length > 0) {
-                            title = textLinks[0].innerText.trim();
+                            title = (textLinks[0].textContent || '').trim();
                         } else {
                             title = imgNode ? (imgNode.getAttribute('title') || imgNode.getAttribute('alt')) : '';
                         }
@@ -181,8 +181,21 @@ const mobileAppHTML = `
                     
                     if (title && title !== '') {
                         seenUrls.add(href);
+                        
+                        let cleanHref = href;
+                        const match = href.match(/\/g\/(\d+)\/([a-z0-9]+)/);
+                        if (match) {
+                            const gid = match[1];
+                            const token = match[2];
+                            
+                            cleanHref = '/m-view/' + gid + '/' + token + '/';
+                            
+                            // ?
+                            // cleanHref = '/viewer/' + gid + '/' + token + '/1/';
+                        }
+
                         const fallbackImg = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9IiMzMzMiLz48dGV4dCB4PSI1MCUiIHk9IjUwJSIgZmlsbD0iIzg4OCIgZm9udC1mYW1pbHk9InNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTQiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj7ml6DlsIHpnaI8L3RleHQ+PC9zdmc+";
-                        html += '<a class="card" href="/m-view?url=' + encodeURIComponent(href) + '"><img src="' + (imgSrc || fallbackImg) + '" loading="lazy" onerror="this.src=\'' + fallbackImg + '\'"><div class="title">' + title + '</div></a>';
+                        html += '<a class="card" href="' + cleanHref + '"><img src="' + (imgSrc || fallbackImg) + '" loading="lazy" onerror="this.src=\'' + fallbackImg + '\'"><div class="title">' + title + '</div></a>';
                     }
                 });
 
@@ -327,6 +340,9 @@ const mobileViewHTML = `
         let lastLoadedUrl = '';
         let globalMpvBase = '';
         let currentMode = localStorage.getItem('preferredReadMode') || 'mpv';
+        const pathParts = window.location.pathname.split('/').filter(p => p);
+        const gidFromPath = pathParts[1];
+        const tokenFromPath = pathParts[2];
 
         let tagDB = null;
         async function loadTagDB() {
@@ -360,11 +376,7 @@ const mobileViewHTML = `
 
         function getFinalHref(origHref, pageNum) {
             if (currentMode === 'mpv') {
-                if (globalMpvBase) {
-                    return '/viewer?url=' + encodeURIComponent(globalMpvBase) + '#' + pageNum;
-                } else {
-                    return '/viewer?url=' + encodeURIComponent(lastLoadedUrl) + '#' + pageNum;
-                }
+                return '/viewer/' + gidFromPath + '/' + tokenFromPath + '/' + pageNum + '/';
             }
             return origHref;
         }
@@ -389,7 +401,10 @@ const mobileViewHTML = `
 
         async function loadGallery(targetUrl, pushState = true) {
             if (!targetUrl) return;
-            if (pushState) window.history.pushState({url: targetUrl}, '', '/m-view?url=' + encodeURIComponent(targetUrl));
+            if (pushState) {
+                const cleanPath = targetUrl.replace('/g/', '/m-view/');
+                window.history.pushState({url: targetUrl}, '', cleanPath);
+            }
             lastLoadedUrl = targetUrl;
 
             document.getElementById('content').innerHTML = '<div class="loading">正在提取画廊数据，请稍候...</div>';
@@ -605,17 +620,15 @@ const mobileViewHTML = `
             }
         });
 
-        window.addEventListener('popstate', (e) => {
-            const url = new URLSearchParams(window.location.search).get('url');
-            if (url) {
-                const prev = new URL(lastLoadedUrl, 'http://x.com');
-                const next = new URL(url, 'http://x.com');
-                if (prev.pathname === next.pathname) paginate(url, window.location.search, false);
-                else loadGallery(url, false);
+        window.addEventListener('popstate', () => {
+            const parts = window.location.pathname.split('/').filter(p => p);
+            if (parts.length >= 3) {
+                loadGallery('/g/' + parts[1] + '/' + parts[2] + '/', false);
             }
         });
 
-        loadGallery(new URLSearchParams(window.location.search).get('url'), false);
+        const initialUrl = '/g/' + gidFromPath + '/' + tokenFromPath + '/';
+        loadGallery(initialUrl, false);
     </script>
 </body>
 </html>
@@ -705,16 +718,20 @@ const mobileViewerHTML = `
     </div>
 
     <script>
-        const urlParams = new URLSearchParams(window.location.search);
-        const rawUrl = urlParams.get('url');
-        const mpvUrl = rawUrl ? rawUrl.replace('/g/', '/mpv/') : '';
-        let currentPage = parseInt(window.location.hash.replace('#', '')) || parseInt(urlParams.get('page')) || 1;
+        const pathParts = window.location.pathname.split('/').filter(p => p);
+        let gid = pathParts[1] || '';
+        let token = pathParts[2] || '';
+        
+        let mpvUrl = '/mpv/' + gid + '/' + token + '/';
+        let rawUrl = '/g/' + gid + '/' + token + '/';
+        let returnUrl = '/m-view/' + gid + '/' + token + '/';
 
-        let gid = '';
+        let pageFromPath = parseInt(pathParts[3]) || 0;
+        let currentPage = parseInt(pathParts[3]) || 1;
+
         let mpvkey = '';
         let imageList = []; 
-        let returnUrl = ''; 
-        let galleryTitle = '';
+        let galleryTitle = ''; 
 
         let config = {
             preloadCount: parseInt(localStorage.getItem('viewer_preload')) || 3,
@@ -761,12 +778,10 @@ const mobileViewerHTML = `
         }
 
         async function fetchMpvData() {
-            if (!mpvUrl) {
+            if (!gid || !token) {
                 showError("缺少 URL 参数! ");
                 return;
             }
-
-            returnUrl = '/m-view?url=' + encodeURIComponent(mpvUrl.replace('/mpv/', '/g/'));
 
             try {
                 const res = await fetch(mpvUrl);
@@ -832,20 +847,20 @@ const mobileViewerHTML = `
 
         let loaderTimeout = null;
 
-        async function goToPage(page, pushState = true) {
+        async function goToPage(page) {
             if (page < 1) page = 1;
             if (page > imageList.length) page = imageList.length;
 
             currentPage = page;
             
-            if (pushState) {
-                window.history.replaceState({page}, '', '#' + page);
-            }
+            window.history.replaceState({}, '', '/viewer/' + gid + '/' + token + '/' + page + '/');
 
             document.getElementById('pageCounter').innerText = page + " / " + imageList.length;
+            
             if (galleryTitle) {
                 document.title = galleryTitle + " " + page + "/" + imageList.length;
             }
+
             const imgEl = document.getElementById('mainImg');
             const loader = document.getElementById('loader');
             const errorEl = document.getElementById('errorMsg');
@@ -1194,6 +1209,18 @@ func (h *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if path == "viewer" {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(mobileViewerHTML))
+		return
+	}
+	if strings.HasPrefix(path, "m-view/") {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(mobileViewHTML))
+		return
+	}
+	if strings.HasPrefix(path, "viewer/") {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(mobileViewerHTML))
