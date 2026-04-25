@@ -61,6 +61,21 @@ const mobileAppHTML = `
         .pagination { display: flex; justify-content: center; gap: 10px; padding: 10px; }
         .pagination button { padding: 10px 20px; background: #34353b; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 15px; }
         .pagination button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .ehs-autocomplete-list {
+            position: absolute; top: 100%; left: 0; right: 0;
+            background: #2a2b2e; border: 1px solid #444; border-radius: 8px;
+            z-index: 2000; max-height: 280px; overflow-y: auto;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.8);
+            display: none; margin-top: 5px;
+        }
+        .ehs-autocomplete-item {
+            padding: 10px 12px; border-bottom: 1px solid #333;
+            display: flex; flex-direction: column; cursor: pointer;
+        }
+        .ehs-autocomplete-item:last-child { border-bottom: none; }
+        .ehs-autocomplete-item:active { background: #3a3b3e; }
+        .ehs-chs { font-size: 14px; font-weight: bold; color: #fff; }
+        .ehs-eng { font-size: 12px; color: #888; margin-top: 3px; font-family: monospace; }
     </style>
 </head>
 <body>
@@ -249,6 +264,123 @@ const mobileAppHTML = `
         let initQuery = window.location.search;
         if (!initQuery) initQuery = '?f_cats=' + currentCats; 
         loadPage(initQuery, false);
+
+        async function initAutocomplete() {
+            // 寻找输入框
+            const searchInput = document.querySelector('input[name="f_search"]') || document.querySelector('input[type="text"]') || document.querySelector('input[type="search"]');
+            if (!searchInput) return;
+
+            // 禁用输入历史记录
+            searchInput.setAttribute('autocomplete', 'off');
+
+            const parent = searchInput.parentNode;
+            if (window.getComputedStyle(parent).position === 'static') {
+                parent.style.position = 'relative';
+            }
+
+            const acList = document.createElement('div');
+            acList.className = 'ehs-autocomplete-list';
+            parent.appendChild(acList);
+
+            let tagArray = [];
+            async function loadTagsForSearch() {
+                try {
+                    let db = null;
+                    const cached = localStorage.getItem('eh_tag_db');
+                    const cacheTime = localStorage.getItem('eh_tag_db_time');
+                    if (cached && cacheTime && (Date.now() - parseInt(cacheTime) < 86400000)) {
+                        db = JSON.parse(cached);
+                    } else {
+                        const res = await fetch('/proxy-api/tags');
+                        db = await res.json();
+                        if (Object.keys(db).length > 0) {
+                            localStorage.setItem('eh_tag_db', JSON.stringify(db));
+                            localStorage.setItem('eh_tag_db_time', Date.now().toString());
+                        }
+                    }
+                    
+                    if (db) {
+                        for (let key in db) {
+                            if (key.includes(':') && !key.startsWith('namespace:')) {
+                                tagArray.push({ 
+                                    eng: key, 
+                                    chs: db[key].n || key
+                                }); 
+                            }
+                        }
+                    }
+                } catch (e) { console.error("自动补全字典加载失败", e); }
+            }
+
+            await loadTagsForSearch();
+
+            searchInput.addEventListener('input', function() {
+                if (!tagArray.length) return;
+                const val = this.value;
+                const cursorPos = this.selectionStart;
+                
+                // 以空格切分 找到当前正在输入的词
+                const textBeforeCursor = val.substring(0, cursorPos);
+                const wordsBefore = textBeforeCursor.split(/\s+/);
+                const currentWord = wordsBefore[wordsBefore.length - 1];
+
+                // 没敲字时不显示
+                if (currentWord.length < 1) {
+                    acList.style.display = 'none';
+                    return;
+                }
+
+                const lowerWord = currentWord.toLowerCase();
+                
+                // 模糊匹配中英文 限制最多显示 15 条
+                const results = tagArray.filter(t => 
+                    t.eng.includes(lowerWord) || t.chs.includes(lowerWord)
+                ).slice(0, 15);
+
+                if (results.length === 0) {
+                    acList.style.display = 'none';
+                    return;
+                }
+
+                acList.innerHTML = '';
+                results.forEach(res => {
+                    const item = document.createElement('div');
+                    item.className = 'ehs-autocomplete-item';
+                    item.innerHTML = '<div class="ehs-chs">' + res.chs + '</div><div class="ehs-eng">' + res.eng + '</div>';
+                    
+                    item.onmousedown = function(e) {
+                        e.preventDefault(); 
+                        
+                        let insertTag = res.eng;
+                        if (insertTag.includes(':')) {
+                            let parts = insertTag.split(':');
+                            insertTag = parts[1].includes(' ') ? parts[0] + ':"' + parts[1] + '$"' : insertTag + '$';
+                        } else {
+                            insertTag = insertTag.includes(' ') ? '"' + insertTag + '$"' : insertTag + '$';
+                        }
+
+                        // 截断旧词
+                        const beforeWord = textBeforeCursor.substring(0, textBeforeCursor.length - currentWord.length);
+                        const afterCursor = val.substring(cursorPos);
+                        
+                        searchInput.value = beforeWord + insertTag + ' ' + afterCursor;
+                        acList.style.display = 'none';
+                        
+                        // 焦点恢复并把光标移到最后
+                        const newPos = beforeWord.length + insertTag.length + 1;
+                        searchInput.setSelectionRange(newPos, newPos);
+                        searchInput.focus();
+                    };
+                    acList.appendChild(item);
+                });
+                acList.style.display = 'block';
+            });
+            searchInput.addEventListener('blur', () => { acList.style.display = 'none'; });
+            searchInput.addEventListener('focus', function() {
+                if (this.value) this.dispatchEvent(new Event('input'));
+            });
+        }
+        setTimeout(initAutocomplete, 500);
     </script>
 </body>
 </html>
