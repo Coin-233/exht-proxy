@@ -38,5 +38,5 @@ SHOW_LOG=1 PORT=<PORT> ./exht-proxy
 - [x] 持久化访问统计
 - [ ] 密码访问
 - [ ] 速率限制
-- [x] 网页界面汉化 (来自 [EhTagTranslation](https://github.com/EhTagTranslation/Database) )
+- [x] 网页界面汉化 & 搜索补全 (来自 [EhTagTranslation](https://github.com/EhTagTranslation/Database) )
 - [ ] 个人收藏
