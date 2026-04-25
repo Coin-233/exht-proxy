@@ -1237,7 +1237,25 @@ const mobileViewerHTML = `
                     // 双击判定窗口 250 毫秒内连续敲击两下
                     if (currentTime - lastTapTime < 250) {
                         clearTimeout(tapTimeout);
-                        resetZoom(); // 触发双击 恢复默认大小
+                        
+                        if (scale > 1) {
+                            // 双击恢复默认
+                            resetZoom();
+                        } else {
+                            // 双击放大到 2.5 倍并对准点击处
+                            scale = 2.5;
+                            const centerX = window.innerWidth / 2;
+                            const centerY = window.innerHeight / 2;
+                            
+                            // 使双击的位置移动到屏幕中心
+                            pointX = (centerX - touchStartX) * (scale - 1);
+                            pointY = (centerY - touchStartY) * (scale - 1);
+                            
+                            img.style.transition = 'transform 0.2s ease';
+                            setTransform();
+                            setTimeout(() => { img.style.transition = 'none'; }, 200);
+                        }
+                        
                         lastTapTime = 0; 
                     } else {
                         lastTapTime = currentTime;
