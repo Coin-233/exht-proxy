@@ -53,10 +53,54 @@ const mobileAppHTML = `
         #resultCount { display: none; text-align: center; font-size: 13px; color: #aaa; padding: 10px; background: #1f2022; border-bottom: 1px solid #333; }
 
         .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; padding: 10px; }
-        .card { background: #2a2b2e; border-radius: 6px; overflow: hidden; display: flex; flex-direction: column; text-decoration: none; color: white; }
-        .card img { width: 100%; aspect-ratio: 7/10; object-fit: cover; display: block; background: #111; }
-        .card .title { padding: 8px; font-size: 13px; text-align: center; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-        
+        .card { 
+            background: #2a2b2e; 
+            border-radius: 6px; 
+            position: relative; 
+            overflow: visible; 
+            display: flex; 
+            flex-direction: column; 
+            text-decoration: none; 
+            color: white; 
+            z-index: 1; 
+        }
+        .card:hover, .card:active { 
+            z-index: 100; 
+        }
+        .card img { 
+            width: 100%; 
+            aspect-ratio: 7/10; 
+            object-fit: cover; 
+            display: block; 
+            background: #111; 
+            border-radius: 6px 6px 0 0; 
+        }
+        .card .title { 
+            padding: 8px; 
+            font-size: 13px; 
+            text-align: center; 
+            line-height: 1.4; 
+            display: -webkit-box; 
+            -webkit-line-clamp: 2; 
+            -webkit-box-orient: vertical; 
+            overflow: hidden; 
+            background: #2a2b2e; 
+            border-radius: 0 0 6px 6px; 
+            box-sizing: border-box; 
+        }
+        .card:hover .title, .card:active .title {
+            position: absolute; 
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            display: block;
+            height: auto;
+            overflow: visible;
+            background: #2b2b2e;
+            border-radius: 6px;
+            box-shadow: 0 -4px 15px rgba(0,0,0,0.8);
+            border: 1px solid #444;
+        }
         .loading { text-align: center; padding: 40px; color: #888; grid-column: 1 / -1; }
         .pagination { display: flex; justify-content: center; gap: 10px; padding: 10px; }
         .pagination button { padding: 10px 20px; background: #34353b; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 15px; }
