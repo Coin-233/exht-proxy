@@ -350,11 +350,20 @@ const mobileAppHTML = `
                     
                     item.onmousedown = function(e) {
                         e.preventDefault(); 
+
+                        const nsMap = {
+                            'artist': 'a', 'character': 'c', 'female': 'f', 
+                            'group': 'g', 'language': 'l', 'male': 'm', 
+                            'parody': 'p', 'reclass': 'r', 'cosplayer': 'cos',
+                            'mixed': 'x', 'other': 'o'
+                        };
                         
                         let insertTag = res.eng;
                         if (insertTag.includes(':')) {
                             let parts = insertTag.split(':');
-                            insertTag = parts[1].includes(' ') ? parts[0] + ':"' + parts[1] + '$"' : insertTag + '$';
+                            let ns = nsMap[parts[0]] || parts[0];
+                            let tagValue = parts[1];
+                            insertTag = tagValue.includes(' ') ? ns + ':"' + tagValue + '$"' : ns + ':' + tagValue + '$';
                         } else {
                             insertTag = insertTag.includes(' ') ? '"' + insertTag + '$"' : insertTag + '$';
                         }
