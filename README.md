@@ -1,10 +1,14 @@
-# 启动
+# exhentai 代理
+
+代理 ex 方便没有 ex 站的用户浏览，默认屏蔽账号相关交互功能，并加入了一些小功能
+
+## 启动
 
 ```bash
 PORT=<PORT> ./exht-proxy
 ```
 
-# 显示日志
+## 显示日志
 
 ```bash
 SHOW_LOG=1 PORT=<PORT> ./exht-proxy
@@ -15,7 +19,38 @@ SHOW_LOG=1 PORT=<PORT> ./exht-proxy
 ## 功能
 
 - 访问统计 (根据 IP 与浏览器指纹)
+
+![!](.image/func1浏览统计.png)
+
 - 自定义移动视图 (画廊列表、详情、浏览界面)
+
+<details>
+
+<summary>画廊列表</summary>
+
+![!](.image/func2画廊列表.png)
+
+</details>
+
+<details>
+
+<summary>画廊详情</summary>
+
+| 画廊详情图 1 | 画廊详情图 2 |
+| :---: | :---: |
+| ![!](.image/func3.1画廊详情页1.png) | ![!](.image/func3.2画廊详情页2.png) |
+
+</details>
+
+<details>
+
+<summary>浏览界面</summary>
+
+| 浏览器图1 | 浏览器图2 |
+| :---: | :---: |
+| ![!](.image/func4.1浏览器图1.png) | ![!](.image/func4.2浏览器图2.png) |
+
+</details>
 
 ### 已默认屏蔽
 
