@@ -73,6 +73,16 @@ jobs:
         with:
           path: artifacts
           merge-multiple: true
+          
+      - name: Generate SHA256 Checksums & Release Body
+        run: |
+          cd artifacts
+          sha256sum * > sha256sums.txt
+          
+          echo "### Checksums" > ../release_body.md
+          echo "\`\`\`text" >> ../release_body.md
+          cat sha256sums.txt >> ../release_body.md
+          echo "\`\`\`" >> ../release_body.md
 
       - name: Create Release and Upload Assets
         uses: softprops/action-gh-release@v2
@@ -80,6 +90,7 @@ jobs:
           tag_name: ${{ github.event.inputs.version }}
           name: Release ${{ github.event.inputs.version }}
           generate_release_notes: true
+          body_path: release_body.md
           draft: false
           prerelease: false
           files: artifacts/*
