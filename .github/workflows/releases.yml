@@ -74,24 +74,44 @@ jobs:
           path: artifacts
           merge-multiple: true
           
-      - name: Generate SHA256 Checksums & Release Body
+      - name: Generate SHA256 Checksums
         run: |
           cd artifacts
           sha256sum * > sha256sums.txt
           
-          echo "### Checksums" > ../release_body.md
-          echo "\`\`\`text" >> ../release_body.md
-          cat sha256sums.txt >> ../release_body.md
-          echo "\`\`\`" >> ../release_body.md
+          echo "" > ../checksums.md
+          echo "### Checksums" >> ../checksums.md
+          echo "\`\`\`text" >> ../checksums.md
+          cat sha256sums.txt >> ../checksums.md
+          echo "\`\`\`" >> ../checksums.md
 
-      - name: Create Release and Upload Assets
-        uses: softprops/action-gh-release@v2
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
-          tag_name: ${{ github.event.inputs.version }}
-          name: Release ${{ github.event.inputs.version }}
-          generate_release_notes: true
-          body_path: release_body.md
-          draft: false
-          prerelease: false
-          files: artifacts/*
+          node-version: "20"
+
+      - name: Generate changelog and Create Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REF: refs/tags/${{ github.event.inputs.version }}
+          GITHUB_REF_NAME: ${{ github.event.inputs.version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -f ${{ github.event.inputs.version }}
+          git push -f origin ${{ github.event.inputs.version }}
+          npx changelogithub
+
+      - name: Upload Assets and Append Checksums
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release view ${{ github.event.inputs.version }} --json body -q .body > current_notes.md
           
+          echo "" >> current_notes.md
+          cat checksums.md >> current_notes.md
+          
+          gh release edit ${{ github.event.inputs.version }} -F current_notes.md
+          
+          cd artifacts
+          gh release upload ${{ github.event.inputs.version }} *
