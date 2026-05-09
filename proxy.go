@@ -720,7 +720,9 @@ const mobileViewHTML = `
                         }
                     }
                     
-                    let bHtml = cBody.innerHTML.replace(/href="([^"]*\/g\/[^"]*)"/gi, (m, p1) => 'href="/m-view?url=' + encodeURIComponent(p1) + '"');
+                    let bHtml = cBody.innerHTML.replace(/href="[^"]*\/g\/(\d+)\/([a-z0-9]+)\/?[^"]*"/gi, (m, newGid, newToken) => {
+                        return 'href="/m-view/' + newGid + '/' + newToken + '/"';
+                    });
                     let extraVotesDiv = votesHtml ? '<div id="' + voteId + '" style="display:none; margin-top:8px; padding-top:8px; border-top:1px dashed #444; font-size:11px; color:#aaa; line-height: 1.4;">' + votesHtml + '</div>' : '';
 
                     commentsHtml += '<div class="comment"><div class="c-head"><span style="font-weight:bold; color:#ddd; font-size:13px;">' + author + '</span>' + badgeHtml + '<span style="margin-left:auto; color:#666; font-size:11px;">' + timeStr + '</span></div><div class="c-body">' + bHtml + extraVotesDiv + '</div></div>';
