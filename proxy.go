@@ -712,10 +712,11 @@ const mobileViewHTML = `
                     if (/Uploader Comment|上传者/i.test(wrapperText)) {
                         badgeHtml = '<span style="color:#ed2553; border: 1px solid #ed2553; padding: 1px 4px; border-radius: 3px; font-size: 10px; margin-left: 8px;">上传者</span>';
                     } else {
-                        const scoreMatch = wrapperText.match(/(?:Score|分数)[\s\S]*?([+-]\d+)/i);
-                        if (scoreMatch) {
-                            const scoreColor = scoreMatch[1].includes('+') ? '#4caf50' : '#f44336';
-                            badgeHtml = '<span onclick="const v = document.getElementById(\'' + voteId + '\'); v.style.display = v.style.display === \'none\' ? \'block\' : \'none\'" style="color:' + scoreColor + '; font-weight:bold; margin-left: 8px; font-size: 12px; cursor: pointer;">[' + scoreMatch[1] + ']</span>';
+                        const scoreNode = wrapper.querySelector('span[id^="comment_score_"]');
+                        if (scoreNode) {
+                            const actualScore = scoreNode.textContent.trim();
+                            const scoreColor = actualScore.includes('+') ? '#4caf50' : '#f44336';
+                            badgeHtml = '<span onclick="const v = document.getElementById(\'' + voteId + '\'); v.style.display = v.style.display === \'none\' ? \'block\' : \'none\'" style="color:' + scoreColor + '; font-weight:bold; margin-left: 8px; font-size: 12px; cursor: pointer;">[' + actualScore + ']</span>';
                         }
                     }
                     
