@@ -691,7 +691,8 @@ const mobileViewHTML = `
                 }
 
                 let commentsHtml = '';
-                doc.querySelectorAll('div[id^="comment_"]').forEach(cBody => {
+                doc.querySelectorAll('div[id^="comment_"]').forEach((cBody, index) => {
+                    const commentIdx = index + 1;
                     const wrapper = cBody.parentElement;
                     if (!wrapper) return;
                     const authorLink = wrapper.querySelector('a[href*="/uploader/"]');
@@ -725,7 +726,15 @@ const mobileViewHTML = `
                     });
                     let extraVotesDiv = votesHtml ? '<div id="' + voteId + '" style="display:none; margin-top:8px; padding-top:8px; border-top:1px dashed #444; font-size:11px; color:#aaa; line-height: 1.4;">' + votesHtml + '</div>' : '';
 
-                    commentsHtml += '<div class="comment"><div class="c-head"><span style="font-weight:bold; color:#ddd; font-size:13px;">' + author + '</span>' + badgeHtml + '<span style="margin-left:auto; color:#666; font-size:11px;">' + timeStr + '</span></div><div class="c-body">' + bHtml + extraVotesDiv + '</div></div>';
+                    commentsHtml += '<div class="comment" id="c-' + commentIdx + '">' +
+                        '<div class="c-head">' +
+                        '<span style="font-weight:bold; color:#ddd; font-size:13px;">' + author + '</span>' + 
+                        badgeHtml + 
+                        '<span style="margin-left:auto; color:#666; font-size:11px; display:flex; align-items:center;">' + 
+                            '<span style="color:#888; font-size:11px; margin-right:6px;">#' + commentIdx + '</span>' + 
+                            timeStr + 
+                        '</span></div>' +
+                        '<div class="c-body">' + bHtml + extraVotesDiv + '</div></div>';
                 });
 
                 let html = '';
@@ -754,6 +763,23 @@ const mobileViewHTML = `
                 if (commentsHtml) html += '<div class=\"comments-section\"><h3>评论 (' + doc.querySelectorAll('div[id^=\"comment_\"]').length + ')</h3>' + commentsHtml + '</div>';
 
                 document.getElementById('content').innerHTML = html;
+
+                const handleHashJump = () => {
+                    const hash = window.location.hash;
+                    if (hash && /^#\d+$/.test(hash)) {
+                        const floor = hash.substring(1);
+                        const target = document.getElementById('c-' + floor);
+                        if (target) {
+                            setTimeout(() => {
+                                target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                target.style.boxShadow = '0 0 12px #ed2553';
+                                setTimeout(() => target.style.boxShadow = 'none', 2000);
+                            }, 300);
+                        }
+                    }
+                };
+                handleHashJump();
+                window.onhashchange = handleHashJump;
 
             } catch (err) {
                 document.getElementById('content').innerHTML = '<div class=\"loading\">加载失败: ' + err.message + '</div>';
