@@ -501,6 +501,24 @@ const mobileViewHTML = `
         .tag-modal-title { font-size: 18px; font-weight: bold; color: #ed2553; margin-bottom: 5px; }
         .tag-modal-eng { font-size: 12px; color: #888; margin-bottom: 15px; font-family: monospace; }
         .tag-modal-desc { font-size: 14px; color: #ddd; line-height: 1.5; text-align: left; max-height: 50vh; overflow-y: auto; }
+        .tag-modal-search-btn { 
+            display: block; 
+            width: 100%; 
+            background: #444; 
+            color: #fff; 
+            border: 1px solid #555; 
+            padding: 10px; 
+            border-radius: 6px; 
+            font-size: 14px; 
+            font-weight: bold;
+            margin-top: 15px; 
+            cursor: pointer; 
+            transition: all 0.2s; 
+        }
+        .tag-modal-search-btn:active { 
+            background: #ed2553; 
+            border-color: #ed2553; 
+        }
     </style>
 </head>
 <body>
@@ -518,6 +536,7 @@ const mobileViewHTML = `
             <div class="tag-modal-title" id="tmTitle">标签名</div>
             <div class="tag-modal-eng" id="tmEng">namespace:tag</div>
             <div class="tag-modal-desc" id="tmDesc">这里是标签的详细介绍...</div>
+            <button class="tag-modal-search-btn" id="tmSearchBtn">搜索此标签</button>
         </div>
     </div>
 
@@ -570,7 +589,32 @@ const mobileViewHTML = `
             document.getElementById('tmTitle').innerText = chs;
             document.getElementById('tmEng').innerText = eng;
             document.getElementById('tmDesc').innerText = intro || '暂无详细介绍。';
+            document.getElementById('tmSearchBtn').onclick = function() {
+                goToTagSearch(eng);
+            };
             document.getElementById('tagModal').style.display = 'flex';
+        }
+
+        function goToTagSearch(fullTag) {
+            const nsMap = {
+                'artist': 'a', 'character': 'c', 'female': 'f', 
+                'group': 'g', 'language': 'l', 'male': 'm', 
+                'parody': 'p', 'reclass': 'r', 'cosplayer': 'cos',
+                'mixed': 'x', 'other': 'o'
+            };
+            
+            let query = fullTag;
+
+            if (fullTag.includes(':')) {
+                let parts = fullTag.split(':');
+                let ns = nsMap[parts[0]] || parts[0];
+                let tagValue = parts[1];
+                query = tagValue.includes(' ') ? ns + ':"' + tagValue + '$"' : ns + ':' + tagValue + '$';
+            } else {
+                query = fullTag.includes(' ') ? '"' + fullTag + '$"' : fullTag + '$';
+            }
+            
+            window.location.href = '/mobile?f_search=' + encodeURIComponent(query);
         }
 
         function onModeChange(newMode) {
