@@ -15,6 +15,30 @@ var (
 	mu sync.Mutex
 )
 
+// visitRecord 用于异步记录访问的数据结构
+type visitRecord struct {
+	ip, fp, url, title string
+}
+
+// visitQueue 是有界缓冲队列，单个 worker goroutine 从中消费，避免 goroutine 无限增长
+var visitQueue = make(chan visitRecord, 256)
+
+func init() {
+	go func() {
+		for v := range visitQueue {
+			RecordVisit(v.ip, v.fp, v.url, v.title)
+		}
+	}()
+}
+
+// EnqueueVisit 非阻塞地将访问记录投入队列。队列满时静默丢弃（不阻塞请求处理）。
+func EnqueueVisit(ip, fp, url, title string) {
+	select {
+	case visitQueue <- visitRecord{ip, fp, url, title}:
+	default:
+	}
+}
+
 type HistoryItem struct {
 	URL   string `json:"url"`
 	Title string `json:"title"`
@@ -28,7 +52,16 @@ func InitDB() {
 		log.Fatalf("无法打开数据库: %v", err)
 	}
 
+	// SQLite 不支持真正的并发写，限制为单连接避免锁争用
+	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(1)
+	db.SetConnMaxLifetime(0)
+
 	schema := `
+	PRAGMA journal_mode=WAL;
+	PRAGMA busy_timeout=5000;
+	PRAGMA synchronous=NORMAL;
+	PRAGMA cache_size=-8000;
 	CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT);
 	CREATE TABLE IF NOT EXISTS user_ips (ip TEXT PRIMARY KEY, user_id INTEGER);
 	CREATE TABLE IF NOT EXISTS user_fps (fp TEXT PRIMARY KEY, user_id INTEGER);

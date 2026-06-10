@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -22,6 +23,10 @@ var (
 	headRegex      = regexp.MustCompile(`(?i)(<head[^>]*>)`)
 	cfBeaconRegex  = regexp.MustCompile(`(?is)<script[^>]*cloudflareinsights\.com[^>]*>.*?</script>`)
 	cfCommentRegex = regexp.MustCompile(`(?is)`)
+
+	// 预编译，避免每次请求重新编译
+	mobileRegex  = regexp.MustCompile(`(?i)(android|iphone|ipad|mobile)`)
+	bodyTagRegex = regexp.MustCompile(`(?i)(<body[^>]*>)`)
 
 	// 汉化字典
 	translations   map[string]string
@@ -1557,8 +1562,9 @@ type TranslationsConfig struct {
 }
 
 type ProxyHandler struct {
-	client  *http.Client
-	cookies map[string]string
+	client   *http.Client
+	cookies  map[string]string
+	cookieMu sync.RWMutex
 }
 
 // 翻译标签用
@@ -1775,6 +1781,13 @@ func NewProxyHandler(cookies map[string]string) *ProxyHandler {
 	}
 }
 
+// UpdateCookie 线程安全地更新代理 cookie（用于定期刷新 igneous 等）
+func (h *ProxyHandler) UpdateCookie(key, value string) {
+	h.cookieMu.Lock()
+	h.cookies[key] = value
+	h.cookieMu.Unlock()
+}
+
 func (h *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/")
 
@@ -1886,10 +1899,10 @@ func (h *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// 读取 Body 并检测
+	// 读取 Body 并检测（限制 10MB 防止内存耗尽）
 	var bodyBytes []byte
 	if r.Method == http.MethodPost || r.Method == http.MethodPut || r.Method == http.MethodPatch {
-		bodyBytes, _ = io.ReadAll(r.Body)
+		bodyBytes, _ = io.ReadAll(io.LimitReader(r.Body, 10<<20))
 		r.Body.Close()
 
 		text := string(bodyBytes)
@@ -1933,11 +1946,13 @@ func (h *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	h.cookieMu.RLock()
 	for k, v := range h.cookies {
 		if v != "" {
 			req.AddCookie(&http.Cookie{Name: k, Value: v})
 		}
 	}
+	h.cookieMu.RUnlock()
 
 	// 执行请求
 	resp, err := h.client.Do(req)
@@ -1992,14 +2007,16 @@ func (h *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		respBytes, _ := io.ReadAll(resp.Body)
 		content := string(respBytes)
 
-		// 域名替换
-		origins := []string{
-			"https://exhentai.org", "http://exhentai.org", "//exhentai.org",
-			"https://s.exhentai.org", "http://s.exhentai.org", "//s.exhentai.org",
-		}
-		for _, origin := range origins {
-			content = strings.ReplaceAll(content, origin, proxyBase)
-		}
+		// 域名替换（单次遍历替换，避免 6 次 ReplaceAll）
+		originReplacer := strings.NewReplacer(
+			"https://exhentai.org", proxyBase,
+			"http://exhentai.org", proxyBase,
+			"//exhentai.org", proxyBase,
+			"https://s.exhentai.org", proxyBase,
+			"http://s.exhentai.org", proxyBase,
+			"//s.exhentai.org", proxyBase,
+		)
+		content = originReplacer.Replace(content)
 
 		// 屏蔽前端敏感信息
 		content = apiuidRegex.ReplaceAllString(content, `var apiuid = "hidden";`)
@@ -2018,14 +2035,13 @@ func (h *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			content = strings.ReplaceAll(content, eng, chs)
 		}
 
-		isMobile := regexp.MustCompile(`(?i)(android|iphone|ipad|mobile)`).MatchString(r.UserAgent())
+		isMobile := mobileRegex.MatchString(r.UserAgent())
 		// 如果是移动设备 且访问的是主页或搜索页 注入横幅
 		if isMobile && (path == "" || strings.HasPrefix(path, "?")) {
 			banner := `<div style="position:fixed;top:0;left:0;width:100%;background:#ed2553;text-align:center;padding:12px;z-index:999999;box-shadow:0 2px 10px rgba(0,0,0,0.5);">
 				<a href="/mobile" style="color:white;text-decoration:none;font-size:16px;font-weight:bold;display:block;">检测到手机端, 点击进入专属 UI</a>
 			</div>`
-			bodyRegex := regexp.MustCompile(`(?i)(<body[^>]*>)`)
-			content = bodyRegex.ReplaceAllString(content, "${1}\n"+banner)
+			content = bodyTagRegex.ReplaceAllString(content, "${1}\n"+banner)
 		}
 
 		// 去除 beacon 追踪
@@ -2047,12 +2063,12 @@ func (h *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			fp = cookie.Value
 		}
 
-		// 记录访问历史
+		// 记录访问历史（异步，使用 worker pool 避免 goroutine 无限增长）
 		if strings.HasPrefix(path, "g/") {
 			matches := titleRegex.FindStringSubmatch(content)
 			if len(matches) >= 2 {
 				title := strings.TrimSpace(matches[1])
-				go RecordVisit(clientIP, fp, path, title)
+				EnqueueVisit(clientIP, fp, path, title)
 			}
 		}
 
@@ -2064,7 +2080,6 @@ func (h *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			&nbsp; <a href="https://github.com/Coin-233/exht-proxy" target="_blank">GitHub</a>
 		</div>` + injectedUI
 
-		footerRegex := regexp.MustCompile(`(?is)<div\s+class=["']dp["'][^>]*>.*?</div>`)
 		if footerRegex.MatchString(content) {
 			content = footerRegex.ReplaceAllString(content, newFooter)
 		} else {
@@ -2082,13 +2097,15 @@ func (h *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		respBytes, _ := io.ReadAll(resp.Body)
 		content := string(respBytes)
 
-		origins := []string{
-			"https://exhentai.org", "http://exhentai.org", "//exhentai.org",
-			"https://s.exhentai.org", "http://s.exhentai.org", "//s.exhentai.org",
-		}
-		for _, origin := range origins {
-			content = strings.ReplaceAll(content, origin, proxyBase)
-		}
+		originReplacer := strings.NewReplacer(
+			"https://exhentai.org", proxyBase,
+			"http://exhentai.org", proxyBase,
+			"//exhentai.org", proxyBase,
+			"https://s.exhentai.org", proxyBase,
+			"http://s.exhentai.org", proxyBase,
+			"//s.exhentai.org", proxyBase,
+		)
+		content = originReplacer.Replace(content)
 
 		// 执行 JS 字符串汉化
 		for eng, chs := range jsTranslations {
