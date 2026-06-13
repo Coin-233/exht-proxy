@@ -7,6 +7,9 @@ import (
 	"sync"
 )
 
+// maxTitlesPerIP 限制每个 IP 在内存中保留的唯一标题数，防止长期运行内存泄漏
+const maxTitlesPerIP = 500
+
 var (
 	visitCount    = make(map[string]int)
 	ipSeenTitles  = make(map[string]map[string]bool)
@@ -32,6 +35,12 @@ func logRequest(ip, path, html string) {
 
 	if _, ok := ipSeenTitles[ip]; !ok {
 		ipSeenTitles[ip] = make(map[string]bool)
+	}
+
+	// 达到上限时重置该 IP 的计数，防止内存无限增长
+	if len(ipSeenTitles[ip]) >= maxTitlesPerIP {
+		ipSeenTitles[ip] = make(map[string]bool)
+		visitCount[ip] = 0
 	}
 
 	if !ipSeenTitles[ip][title] {

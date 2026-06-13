@@ -1,4 +1,4 @@
 .env
 build/
 tmp/
-*.db
+*.db*

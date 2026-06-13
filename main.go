@@ -2,10 +2,13 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -138,11 +141,48 @@ func main() {
 	proxyHandler := NewProxyHandler(baseCookies)
 	loggedHandler := loggingMiddleware(proxyHandler)
 
+	// 定期刷新 igneous cookie（每 6 小时），防止长期运行后鉴权失效
+	go func() {
+		ticker := time.NewTicker(6 * time.Hour)
+		defer ticker.Stop()
+		for range ticker.C {
+			newIgneous := fetchIgneous(baseCookies)
+			if newIgneous != "" {
+				proxyHandler.UpdateCookie("igneous", newIgneous)
+				log.Printf("igneous cookie 已自动刷新: %s\n", newIgneous)
+			} else {
+				log.Println("igneous 刷新失败，继续使用原值")
+			}
+		}
+	}()
+
+	server := &http.Server{
+		Addr:         ":" + port,
+		Handler:      loggedHandler,
+		ReadTimeout:  30 * time.Second,
+		WriteTimeout: 120 * time.Second,
+		IdleTimeout:  120 * time.Second,
+	}
+
 	log.Printf("启动完成, 代理就绪. 监听端口: %s\n", port)
 
-	if err := http.ListenAndServe(":"+port, loggedHandler); err != nil {
+	// 优雅关闭：等待 SIGINT / SIGTERM
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		<-quit
+		log.Println("收到退出信号，正在优雅关闭...")
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		if err := server.Shutdown(ctx); err != nil {
+			log.Printf("服务器关闭时出错: %v\n", err)
+		}
+	}()
+
+	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatalf("服务器启动失败: %v", err)
 	}
+	log.Println("服务器已关闭")
 }
 
 func parseCookies(s string) map[string]string {
