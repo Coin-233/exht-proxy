@@ -24,6 +24,11 @@ var (
 	cfBeaconRegex  = regexp.MustCompile(`(?is)<script[^>]*cloudflareinsights\.com[^>]*>.*?</script>`)
 	cfCommentRegex = regexp.MustCompile(`(?is)`)
 
+	// 配额查询
+	quotaRegex   = regexp.MustCompile(`(?i)You are currently at <strong>([\d,]+)</strong> towards your account limit of <strong>([\d,]+)</strong>`)
+	creditsRegex = regexp.MustCompile(`(?i)Available:\s*([\d,]+)\s*Credits`)
+	kgpRegex     = regexp.MustCompile(`(?i)Available:\s*([\d,]+)\s*kGP`)
+
 	// 预编译，避免每次请求重新编译
 	mobileRegex  = regexp.MustCompile(`(?i)(android|iphone|ipad|mobile)`)
 	bodyTagRegex = regexp.MustCompile(`(?i)(<body[^>]*>)`)
@@ -1854,6 +1859,55 @@ func (h *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		w.WriteHeader(http.StatusOK)
 		w.Write(tagDBJSON)
+		return
+	}
+
+	// 配额查询
+	if path == "proxy-api/quota" {
+		fetchHTML := func(subPath string) string {
+			targetURL := "https://e-hentai.org/" + subPath
+			req, err := http.NewRequest("GET", targetURL, nil)
+			if err != nil {
+				return ""
+			}
+			for k, v := range h.cookies {
+				if v != "" {
+					req.AddCookie(&http.Cookie{Name: k, Value: v})
+				}
+			}
+			req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36")
+			resp, err := h.client.Do(req)
+			if err != nil {
+				return ""
+			}
+			defer resp.Body.Close()
+			b, _ := io.ReadAll(resp.Body)
+			return string(b)
+		}
+		homeHTML := fetchHTML("home.php")
+		// fmt.Println(len(homeHTML))
+		// fmt.Println(homeHTML[:min(10000, len(homeHTML))])
+		exchangeHTML := fetchHTML("exchange.php?t=gp")
+
+		result := map[string]string{
+			"quota_used":  "0",
+			"quota_limit": "0",
+			"credits":     "0",
+			"kgp":         "0",
+		}
+
+		if m := quotaRegex.FindStringSubmatch(homeHTML); len(m) == 3 {
+			result["quota_used"] = strings.ReplaceAll(m[1], ",", "")
+			result["quota_limit"] = strings.ReplaceAll(m[2], ",", "")
+		}
+		if m := creditsRegex.FindStringSubmatch(exchangeHTML); len(m) == 2 {
+			result["credits"] = strings.ReplaceAll(m[1], ",", "")
+		}
+		if m := kgpRegex.FindStringSubmatch(exchangeHTML); len(m) == 2 {
+			result["kgp"] = strings.ReplaceAll(m[1], ",", "")
+		}
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		json.NewEncoder(w).Encode(result)
 		return
 	}
 
