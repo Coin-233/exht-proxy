@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -21,6 +22,7 @@ var (
 	BlockedQueryKeys []string
 	BlockedMethods   []string
 	ShowLog          bool
+	TorrentMode      int
 )
 
 func loggingMiddleware(next http.Handler) http.Handler {
@@ -87,6 +89,14 @@ func main() {
 	ShowLog = os.Getenv("SHOW_LOG") == "1"
 	if ShowLog {
 		log.Println("已开启详细访问日志输出")
+	}
+
+	if modeStr := os.Getenv("TORRENT_MODE"); modeStr != "" {
+		if mode, err := strconv.Atoi(modeStr); err == nil {
+			TorrentMode = mode
+		}
+	} else {
+		TorrentMode = 1
 	}
 
 	RawCookies = strings.Trim(os.Getenv("COOKIES"), `"' `)

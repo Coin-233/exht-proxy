@@ -1911,8 +1911,19 @@ func (h *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 种子模式
+	isTorrentPage := strings.HasPrefix(path, "gallerytorrents.php")
+
+	if isTorrentPage && TorrentMode == 1 {
+		http.Error(w, "Access is forbidden by proxy configuration.", http.StatusForbidden)
+		return
+	}
+
 	// 路径屏蔽
 	for _, blocked := range BlockedPaths {
+		if blocked == "gallerytorrents.php" {
+			continue
+		}
 		if strings.HasPrefix(path, blocked) {
 			http.Error(w, fmt.Sprintf("Access to path '%s' is forbidden by proxy configuration.", path), http.StatusForbidden)
 			return
@@ -1937,6 +1948,11 @@ func (h *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		} else {
 			http.Error(w, "Invalid hath URL", http.StatusBadRequest)
 			return
+		}
+	} else if isTorrentPage && TorrentMode == 2 {
+		targetURL = "https://e-hentai.org/" + path
+		if r.URL.RawQuery != "" {
+			targetURL += "?" + r.URL.RawQuery
 		}
 	} else if strings.HasPrefix(path, "s/") {
 		if sRouteRegex.MatchString(path) {
@@ -2003,10 +2019,17 @@ func (h *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.cookieMu.RLock()
 	for k, v := range h.cookies {
 		if v != "" {
+			if isTorrentPage && TorrentMode == 2 {
+				continue
+			}
 			req.AddCookie(&http.Cookie{Name: k, Value: v})
 		}
 	}
 	h.cookieMu.RUnlock()
+
+	if isTorrentPage && TorrentMode == 2 {
+		req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36")
+	}
 
 	// 执行请求
 	resp, err := h.client.Do(req)
