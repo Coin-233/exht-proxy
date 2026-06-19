@@ -23,6 +23,7 @@ var (
 	BlockedMethods   []string
 	ShowLog          bool
 	TorrentMode      int
+	ArchiverMode     int
 )
 
 func loggingMiddleware(next http.Handler) http.Handler {
@@ -97,6 +98,14 @@ func main() {
 		}
 	} else {
 		TorrentMode = 1
+	}
+
+	if modeStr := os.Getenv("ARCHIVER_MODE"); modeStr != "" {
+		if mode, err := strconv.Atoi(modeStr); err == nil {
+			ArchiverMode = mode
+		}
+	} else {
+		ArchiverMode = 1
 	}
 
 	RawCookies = strings.Trim(os.Getenv("COOKIES"), `"' `)

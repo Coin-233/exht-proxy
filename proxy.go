@@ -37,6 +37,9 @@ var (
 	translations   map[string]string
 	jsTranslations map[string]string
 	tagDBJSON      []byte
+
+	hathDlRegex      = regexp.MustCompile(`(?is)<div[^>]*>\s*<p[^>]*>H@H Downloader</p>.*?</script>\s*</div>`)
+	archiveCostRegex = regexp.MustCompile(`(?is)(Download Cost:\s*(?:&nbsp;)?\s*<strong>([^<]+)</strong>.*?)<input type="submit"([^>]+)>`)
 )
 
 // 手机视图
@@ -1919,9 +1922,17 @@ func (h *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 归档模式
+	isArchiverPage := strings.HasPrefix(path, "archiver.php")
+
+	if isArchiverPage && ArchiverMode == 1 {
+		http.Error(w, "Access is forbidden by proxy configuration.", http.StatusForbidden)
+		return
+	}
+
 	// 路径屏蔽
 	for _, blocked := range BlockedPaths {
-		if blocked == "gallerytorrents.php" {
+		if blocked == "gallerytorrents.php" || blocked == "archiver.php" {
 			continue
 		}
 		if strings.HasPrefix(path, blocked) {
@@ -1979,6 +1990,54 @@ func (h *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if strings.Contains(text, "commenttext_new") {
 			http.Error(w, "Blocked by proxy: comment submission is not allowed.", http.StatusForbidden)
 			return
+		}
+
+		if isArchiverPage && ArchiverMode == 2 && r.Method == http.MethodPost {
+			if strings.Contains(text, "hathdl_xres=") {
+				http.Error(w, "Blocked by proxy: H@H downloads are not allowed.", http.StatusForbidden)
+				return
+			}
+
+			dltype := ""
+			if strings.Contains(text, "dltype=org") {
+				dltype = "org"
+			} else if strings.Contains(text, "dltype=res") {
+				dltype = "res"
+			}
+
+			if dltype != "" {
+				verifyReq, _ := http.NewRequest("GET", targetURL, nil)
+				h.cookieMu.RLock()
+				for k, v := range h.cookies {
+					if v != "" {
+						verifyReq.AddCookie(&http.Cookie{Name: k, Value: v})
+					}
+				}
+				h.cookieMu.RUnlock()
+
+				verifyResp, err := h.client.Do(verifyReq)
+				isFree := false
+				if err == nil {
+					defer verifyResp.Body.Close()
+					bVerify, _ := io.ReadAll(verifyResp.Body)
+					htmlStr := string(bVerify)
+
+					blocks := strings.Split(htmlStr, `<div style="width:180px;`)
+					for _, block := range blocks {
+						if strings.Contains(block, `name="dltype"`) && strings.Contains(block, `value="`+dltype+`"`) {
+							if strings.Contains(strings.ToLower(block), "free") {
+								isFree = true
+							}
+							break
+						}
+					}
+				}
+
+				if !isFree {
+					http.Error(w, "Blocked by proxy: non-free downloads are not allowed.", http.StatusForbidden)
+					return
+				}
+			}
 		}
 
 		if strings.HasSuffix(path, "api.php") && r.Method == http.MethodPost {
@@ -2110,6 +2169,21 @@ func (h *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// 界面汉化
 		for eng, chs := range translations {
 			content = strings.ReplaceAll(content, eng, chs)
+		}
+
+		if isArchiverPage && ArchiverMode == 2 {
+			content = hathDlRegex.ReplaceAllString(content, "")
+			content = archiveCostRegex.ReplaceAllStringFunc(content, func(m string) string {
+				matches := archiveCostRegex.FindStringSubmatch(m)
+				if len(matches) >= 4 {
+					costStr := strings.ToLower(matches[2])
+					if !strings.Contains(costStr, "free") {
+						disabledBtn := `<input type="button" disabled="disabled" value="禁止下载" style="width:180px; background:#444; color:#888; border:1px solid #555; cursor:not-allowed;" title="已屏蔽消耗 GP/Credits 的下载" />`
+						return matches[1] + disabledBtn
+					}
+				}
+				return m
+			})
 		}
 
 		isMobile := mobileRegex.MatchString(r.UserAgent())
