@@ -1993,6 +1993,11 @@ func (h *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		if strings.HasPrefix(path, "archiver.php") && strings.Contains(text, "hathdl_xres=") {
+			http.Error(w, "Blocked by proxy: H@H download is not allowed.", http.StatusForbidden)
+			return
+		}
+
 		if isArchiverPage && ArchiverMode == 2 && r.Method == http.MethodPost {
 			if strings.Contains(text, "hathdl_xres=") {
 				http.Error(w, "Blocked by proxy: H@H downloads are not allowed.", http.StatusForbidden)
