@@ -38,8 +38,9 @@ var (
 	jsTranslations map[string]string
 	tagDBJSON      []byte
 
-	hathDlRegex      = regexp.MustCompile(`(?is)<div[^>]*>\s*<p[^>]*>H@H Downloader</p>.*?</script>\s*</div>`)
-	archiveCostRegex = regexp.MustCompile(`(?is)(Download Cost:\s*(?:&nbsp;)?\s*<strong>([^<]+)</strong>.*?)<input type="submit"([^>]+)>`)
+	hathDlRegex        = regexp.MustCompile(`(?is)<div[^>]*>\s*<p[^>]*>H@H Downloader</p>.*?</script>\s*</div>`)
+	archiveCostRegex   = regexp.MustCompile(`(?is)(Download Cost:\s*(?:&nbsp;)?\s*<strong>([^<]+)</strong>.*?)<input type="submit"([^>]+)>`)
+	torrentUploadRegex = regexp.MustCompile(`(?is)<div[^>]*>\s*<div[^>]*>\s*<span[^>]*>New Torrents:</span>.*?</form>\s*</div>`)
 )
 
 // 手机视图
@@ -2178,12 +2179,26 @@ func (h *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				if len(matches) >= 4 {
 					costStr := strings.ToLower(matches[2])
 					if !strings.Contains(costStr, "free") {
-						disabledBtn := `<input type="button" disabled="disabled" value="禁止下载" style="width:180px; background:#444; color:#888; border:1px solid #555; cursor:not-allowed;" title="已屏蔽消耗 GP/Credits 的下载" />`
+						disabledBtn := `<input type="button" disabled="disabled" value="禁止扣费下载" style="width:180px; background:#444; color:#888; border:1px solid #555; cursor:not-allowed;" title="代理服务器已屏蔽消耗 GP/Credits 的下载" />`
 						return matches[1] + disabledBtn
 					}
 				}
 				return m
 			})
+		}
+
+		if isTorrentPage {
+			content = torrentUploadRegex.ReplaceAllString(content, "")
+		}
+
+		// 提取归档包链接
+		if strings.HasPrefix(path, "hath/") {
+			parts := strings.SplitN(path, "/", 3)
+			if len(parts) >= 2 {
+				hathHost := parts[1]
+				directPrefix := fmt.Sprintf(`href="https://%s/archive/`, hathHost)
+				content = strings.ReplaceAll(content, `href="/archive/`, directPrefix)
+			}
 		}
 
 		isMobile := mobileRegex.MatchString(r.UserAgent())
