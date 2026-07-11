@@ -14,7 +14,24 @@ PORT=<PORT> ./exht-proxy
 SHOW_LOG=1 PORT=<PORT> ./exht-proxy
 ```
 
+## 配置项
+
 请在`.env`文件中写入cookie, 并按需配置屏蔽项目
+
+```env
+
+BLOCKED_PATHS=archiver.php,mytags,repo/torrent_post.php,gallerytorrents.php,uconfig.php,favorites.php
+BLOCKED_QUERY_KEYS=report,act,inline_set
+BLOCKED_METHODS=rategallery,votecomment,favorite,taggallery
+
+// 1 为完全阻止种子下载, 2 为下载无跟踪的种子, 无法下载 ex 站内的
+TORRENT_MODE=
+
+// 1 为完全组织归档下载, 2 为仅允许下载 Free 文件, 已屏蔽 H@H 下载
+ARCHIVER_MODE=
+
+COOKIES='ipb_member_id= ;ipb_pass_hash= ;hath_perks= ;sk= '
+```
 
 ## 功能
 
@@ -75,3 +92,4 @@ SHOW_LOG=1 PORT=<PORT> ./exht-proxy
 - [ ] 速率限制
 - [x] 网页界面汉化 & 搜索补全 (来自 [EhTagTranslation](https://github.com/EhTagTranslation/Database) )
 - [ ] 个人收藏
+- [ ] 允许使用一定 GP 进行归档下载 
