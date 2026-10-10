@@ -31,7 +31,10 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.25.4'
+          go-version-file: go.mod
+
+      - name: Vet
+        run: go vet ./...
 
       - name: Install UPX
         run: sudo apt-get update && sudo apt-get install -y upx-ucl
@@ -45,7 +48,7 @@ jobs:
           SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
           BINARY_NAME=exht-proxy-${{ matrix.goos }}-${{ matrix.goarch }}-${SHORT_SHA}${{ matrix.ext }}
           
-          go build -ldflags="-s -w" -o $BINARY_NAME .
+          go build -ldflags="-s -w" -o $BINARY_NAME ./cmd/exht-proxy
           echo "BINARY_NAME=$BINARY_NAME" >> $GITHUB_ENV
 
       - name: Compress with UPX

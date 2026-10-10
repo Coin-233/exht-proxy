@@ -1,0 +1,450 @@
+
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>加载中...</title>
+    <style>
+        body { background: #1f2022; color: #f3f3f3; font-family: sans-serif; margin: 0; padding-bottom: 30px; }
+        .header { position: sticky; top: 0; padding: 12px; background: #2a2b2e; border-bottom: 2px solid #ed2553; z-index: 100; display: flex; align-items: center; box-shadow: 0 2px 10px rgba(0,0,0,0.5); }
+        .back-btn { background: none; border: none; color: #f3f3f3; font-size: 16px; font-weight: bold; cursor: pointer; padding: 0 15px 0 0; }
+        .header-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; font-size: 15px; }
+
+        .container { padding: 15px; }
+        .loading { text-align: center; padding: 40px; color: #888; }
+        
+        /* 顶部信息区 */
+        .info-section { display: flex; flex-direction: column; align-items: center; margin-bottom: 20px; }
+        .cover { width: 100%; max-width: 320px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); margin-bottom: 15px; background:#111; }
+        .title-main { font-size: 16px; font-weight: bold; text-align: center; margin-bottom: 5px; color: #fff; }
+        .title-sub { font-size: 13px; text-align: center; color: #aaa; margin-bottom: 10px; }
+        .meta-info { font-size: 12px; color: #888; text-align: center; background: #2a2b2e; padding: 8px; border-radius: 6px; width: 100%; box-sizing: border-box; }
+
+        /*  阅读模式按钮组  */
+        .read-group { display: flex; gap: 8px; margin-bottom: 20px; }
+        .read-btn { flex: 1; background: #ed2553; color: white; text-align: center; padding: 14px 0; border-radius: 6px; font-size: 16px; font-weight: bold; text-decoration: none; box-shadow: 0 4px 10px rgba(237, 37, 83, 0.3); }
+        .read-select { background: #34353b; color: white; border: 1px solid #444; border-radius: 6px; padding: 0 10px; font-size: 14px; outline: none; }
+
+        /* 标签区 */
+        .tags-section { background: #2a2b2e; border-radius: 6px; padding: 12px; margin-bottom: 20px; }
+        .tag-group { display: flex; align-items: flex-start; margin-bottom: 8px; }
+        .tag-cat { font-size: 12px; color: #888; width: 75px; flex-shrink: 0; padding-top: 5px; text-transform: capitalize; }
+        .tag-items { display: flex; flex-wrap: wrap; gap: 6px; }
+        .tag-chip { background: #34353b; color: #ddd; padding: 4px 8px; border-radius: 4px; font-size: 12px; border: 1px solid #444; }
+
+        /* 预览图网格 */
+        .thumbs-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(105px, 1fr)); gap: 8px; margin-bottom: 20px; scroll-margin-top: 65px; }
+        .thumb-wrap { display: flex; align-items: center; justify-content: center; overflow: hidden; border-radius: 4px; border: 1px solid #333; background: #111; aspect-ratio: 7/10; }
+        .thumb-wrap img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .thumb-wrap div { zoom: 0.75; } 
+
+        /* 翻页 */
+        .pagination { display: flex; justify-content: center; overflow-x: auto; padding: 10px 0; background: #2a2b2e; border-radius: 6px; margin-bottom: 20px; }
+        .pagination table { border-collapse: collapse; }
+        .pagination td { padding: 0; }
+        .pagination a, .pagination span { display: block; padding: 8px 12px; color: #fff; text-decoration: none; }
+        .pagination .ptds { background: #ed2553; border-radius: 4px; font-weight: bold; }
+
+        /* 评论区 */
+        .comments-section h3 { font-size: 15px; margin: 0 0 10px 0; color: #ccc; border-bottom: 1px solid #333; padding-bottom: 5px; }
+        .comment { background: #2a2b2e; border-radius: 6px; padding: 10px; margin-bottom: 10px; font-size: 13px; line-height: 1.5; word-break: break-all; }
+        .c-head { margin-bottom: 8px; border-bottom: 1px dashed #444; padding-bottom: 6px; display: flex; align-items: center; flex-wrap: wrap; }
+        .c-body a { color: #ed2553; }
+        .c-body img { max-width: 100%; height: auto; }
+
+        /* 标签详情弹窗 */
+        .tag-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 200; display: none; align-items: center; justify-content: center; backdrop-filter: blur(2px); }
+        .tag-modal-content { background: #2a2b2e; width: 80%; max-width: 320px; border-radius: 10px; padding: 20px; box-sizing: border-box; box-shadow: 0 4px 20px rgba(0,0,0,0.8); text-align: center; }
+        .tag-modal-title { font-size: 18px; font-weight: bold; color: #ed2553; margin-bottom: 5px; }
+        .tag-modal-eng { font-size: 12px; color: #888; margin-bottom: 15px; font-family: monospace; }
+        .tag-modal-desc { font-size: 14px; color: #ddd; line-height: 1.5; text-align: left; max-height: 50vh; overflow-y: auto; }
+        .tag-modal-search-btn { 
+            display: block; 
+            width: 100%; 
+            background: #444; 
+            color: #fff; 
+            border: 1px solid #555; 
+            padding: 10px; 
+            border-radius: 6px; 
+            font-size: 14px; 
+            font-weight: bold;
+            margin-top: 15px; 
+            cursor: pointer; 
+            transition: all 0.2s; 
+        }
+        .tag-modal-search-btn:active { 
+            background: #ed2553; 
+            border-color: #ed2553; 
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <button class="back-btn" onclick="handleBack()">❮ 返回</button>
+        <div class="header-title" id="headTitle">加载中...</div>
+    </div>
+
+    <div class="container" id="content">
+        <div class="loading">正在提取画廊数据, 请稍候...</div>
+    </div>
+
+    <div class="tag-modal" id="tagModal" onclick="this.style.display='none'">
+        <div class="tag-modal-content" onclick="event.stopPropagation()">
+            <div class="tag-modal-title" id="tmTitle">标签名</div>
+            <div class="tag-modal-eng" id="tmEng">namespace:tag</div>
+            <div class="tag-modal-desc" id="tmDesc">这里是标签的详细介绍...</div>
+            <button class="tag-modal-search-btn" id="tmSearchBtn">搜索此标签</button>
+        </div>
+    </div>
+
+    <script>
+        let lastLoadedUrl = '';
+        let globalMpvBase = '';
+        let currentMode = localStorage.getItem('preferredReadMode') || 'mpv';
+        const pathParts = window.location.pathname.split('/').filter(p => p);
+        const gidFromPath = pathParts[1];
+        const tokenFromPath = pathParts[2];
+
+        let tagDB = null;
+        async function loadTagDB() {
+            if (tagDB) return;
+            try {
+                const cached = localStorage.getItem('eh_tag_db');
+                const cacheTime = localStorage.getItem('eh_tag_db_time');
+                const now = Date.now();
+                if (cached && cacheTime && (now - parseInt(cacheTime) < 86400000)) {
+                    tagDB = JSON.parse(cached);
+                    return;
+                }
+                const res = await fetch('/proxy-api/tags');
+                tagDB = await res.json();
+                if (Object.keys(tagDB).length > 0) {
+                    localStorage.setItem('eh_tag_db', JSON.stringify(tagDB));
+                    localStorage.setItem('eh_tag_db_time', now.toString());
+                }
+            } catch (e) {
+                console.error("加载汉化标签库失败", e);
+            }
+        }
+
+        function handleBack() {
+            if (window.history.length > 1) {
+                window.history.back();
+            } else {
+                window.location.replace('/mobile');
+            }
+        }
+
+        function getFinalHref(origHref, pageNum) {
+            if (currentMode === 'mpv') {
+                return '/viewer/' + gidFromPath + '/' + tokenFromPath + '/' + pageNum + '/';
+            }
+            return origHref;
+        }
+
+        function showTagInfo(eng, chs, intro) {
+            document.getElementById('tmTitle').innerText = chs;
+            document.getElementById('tmEng').innerText = eng;
+            document.getElementById('tmDesc').innerText = intro || '暂无详细介绍。';
+            document.getElementById('tmSearchBtn').onclick = function() {
+                goToTagSearch(eng);
+            };
+            document.getElementById('tagModal').style.display = 'flex';
+        }
+
+        function goToTagSearch(fullTag) {
+            const nsMap = {
+                'artist': 'a', 'character': 'c', 'female': 'f', 
+                'group': 'g', 'language': 'l', 'male': 'm', 
+                'parody': 'p', 'reclass': 'r', 'cosplayer': 'cos',
+                'mixed': 'x', 'other': 'o'
+            };
+            
+            let query = fullTag;
+
+            if (fullTag.includes(':')) {
+                let parts = fullTag.split(':');
+                let ns = nsMap[parts[0]] || parts[0];
+                let tagValue = parts[1];
+                query = tagValue.includes(' ') ? ns + ':"' + tagValue + '$"' : ns + ':' + tagValue + '$';
+            } else {
+                query = fullTag.includes(' ') ? '"' + fullTag + '$"' : fullTag + '$';
+            }
+            
+            window.location.href = '/mobile?f_search=' + encodeURIComponent(query);
+        }
+
+        function onModeChange(newMode) {
+            currentMode = newMode;
+            localStorage.setItem('preferredReadMode', newMode);
+            document.querySelectorAll('.thumb-wrap').forEach(a => {
+                a.href = getFinalHref(a.getAttribute('data-orig'), a.getAttribute('data-page'));
+            });
+            const readBtn = document.querySelector('.read-btn');
+            const firstThumb = document.querySelector('.thumb-wrap');
+            if (readBtn && firstThumb) readBtn.href = firstThumb.href;
+        }
+
+        async function loadGallery(targetUrl, pushState = true) {
+            if (!targetUrl) return;
+            if (pushState) {
+                const cleanPath = targetUrl.replace('/g/', '/m-view/');
+                window.history.pushState({url: targetUrl}, '', cleanPath);
+            }
+            lastLoadedUrl = targetUrl;
+
+            document.getElementById('content').innerHTML = '<div class="loading">正在提取画廊数据，请稍候...</div>';
+            window.scrollTo(0, 0);
+
+            try {
+                const res = await fetch(targetUrl);
+                const text = await res.text();
+                const doc = new DOMParser().parseFromString(text, 'text/html');
+                
+                const gn = doc.querySelector('#gn') ? doc.querySelector('#gn').innerText : '未知标题';
+                const gj = doc.querySelector('#gj') ? doc.querySelector('#gj').innerText : '';
+            
+                document.getElementById('headTitle').innerText = gn;
+                document.title = gn;
+
+                // 提取封面和大图
+                let coverUrl = '';
+                const gd1Img = doc.querySelector('#gd1 img');
+                if (gd1Img) coverUrl = gd1Img.getAttribute('src');
+                else {
+                    const gd1Div = doc.querySelector('#gd1 div[style]');
+                    if (gd1Div) {
+                        const match = gd1Div.getAttribute('style').match(/url\((['"]?)(.*?)\1\)/);
+                        if (match) coverUrl = match[2];
+                    }
+                }
+
+                const upNode = doc.querySelector('#gdn a');
+                const uploader = upNode ? upNode.innerText : '未知';
+                const dateMatch = text.match(/\d{4}-\d{2}-\d{2} \d{2}:\d{2}/);
+                const posted = dateMatch ? dateMatch[0] : '未知';
+                let rating = '暂无';
+                const ratingNode = doc.querySelector('#rating_label');
+                if (ratingNode) {
+                    const rMatch = ratingNode.innerText.match(/[\d.]+/);
+                    rating = rMatch ? rMatch[0] : ratingNode.innerText;
+                }
+
+                // 提取 MPV 链接并保存到全局
+                const mpvNode = Array.from(doc.querySelectorAll('a')).find(a => a.getAttribute('href') && a.getAttribute('href').includes('/mpv/'));
+                globalMpvBase = mpvNode ? mpvNode.getAttribute('href') : '';
+
+                // 标签提取与自动汉化
+                await loadTagDB();
+                let tagsHtml = '';
+                doc.querySelectorAll('#taglist tr').forEach(tr => {
+                    const catEng = tr.querySelector('.tc') ? tr.querySelector('.tc').innerText.replace(':', '') : '';
+                    let catChs = catEng;
+                    
+                    // 汉化左侧分类名
+                    if (tagDB && tagDB["namespace:" + catEng]) {
+                        catChs = tagDB["namespace:" + catEng].n;
+                    }
+
+                    const chips = Array.from(tr.querySelectorAll('a[href*=\"/tag/\"]')).map(a => {
+                        const engTag = a.innerText;
+                        let chsTag = engTag;
+                        let intro = '';
+                        
+                        if (tagDB) {
+                            const fullKey = catEng + ":" + engTag;
+                            if (tagDB[fullKey]) {
+                                chsTag = tagDB[fullKey].n;
+                                intro = tagDB[fullKey].i;
+                            } else if (tagDB[engTag]) {
+                                chsTag = tagDB[engTag].n;
+                                intro = tagDB[engTag].i;
+                            }
+                        }
+                        
+                        const safeIntro = intro.replace(/'/g, "\\'").replace(/"/g, "&quot;").replace(/\n/g, "<br>");
+                        return '<span class=\"tag-chip\" onclick=\"showTagInfo(\'' + catEng + ':' + engTag + '\', \'' + chsTag + '\', \'' + safeIntro + '\')\">' + chsTag + '</span>';
+                    }).join('');
+
+                    if (catEng && chips) tagsHtml += '<div class=\"tag-group\"><div class=\"tag-cat\">' + catChs + '</div><div class=\"tag-items\">' + chips + '</div></div>';
+                });
+
+                // 预览图提取
+                let thumbsHtml = '';
+                Array.from(doc.querySelectorAll('#gdt a')).forEach((a, index) => {
+                    const href = a.getAttribute('href');
+                    const pageMatch = href.match(/-(\d+)$/);
+                    const pageNum = pageMatch ? pageMatch[1] : '1';
+                    const finalHref = getFinalHref(href, pageNum);
+                    const thumbImg = a.querySelector('img');
+                    const thumbDiv = a.querySelector('div[style]');
+                    let inner = thumbImg ? '<img src=\"' + (thumbImg.getAttribute('src')||thumbImg.getAttribute('data-src')) + '\">' : (thumbDiv ? '<div style=\"' + thumbDiv.getAttribute('style') + '\"></div>' : '');
+                    thumbsHtml += '<a class=\"thumb-wrap\" href=\"' + finalHref + '\" data-orig=\"' + href + '\" data-page=\"' + pageNum + '\">' + inner + '</a>';
+                });
+
+                // 翻页提取
+                let paginationHtml = '';
+                const ptb = doc.querySelector('.ptb') || doc.querySelector('.ptt');
+                if (ptb) {
+                    ptb.querySelectorAll('*').forEach(el => el.removeAttribute('onclick'));
+                    ptb.querySelectorAll('a').forEach(a => a.setAttribute('href', '/m-view?url=' + encodeURIComponent(a.getAttribute('href'))));
+                    paginationHtml = '<div class=\"pagination\">' + ptb.outerHTML + '</div>';
+                }
+
+                let commentsHtml = '';
+                doc.querySelectorAll('div[id^="comment_"]').forEach((cBody, index) => {
+                    const commentIdx = index + 1;
+                    const wrapper = cBody.parentElement;
+                    if (!wrapper) return;
+                    const authorLink = wrapper.querySelector('a[href*="/uploader/"]');
+                    const author = authorLink ? (authorLink.textContent || '').trim() : '未知用户';
+                    let timeStr = '';
+                    const c3 = wrapper.querySelector('.c3');
+                    if (c3) {
+                        let rawText = c3.textContent || '';
+                        if (authorLink) rawText = rawText.replace(authorLink.textContent || '', '');
+                        timeStr = rawText.replace(/Posted on|by:|提交于|由/gi, '').trim().replace(/(,$|^,)/g, '').trim();
+                    }
+                    const c7 = wrapper.querySelector('.c7');
+                    let votesHtml = c7 ? c7.innerHTML : '';
+                    const voteId = 'votes_' + cBody.id; 
+
+                    let badgeHtml = '';
+                    const wrapperText = wrapper.textContent || '';
+                    if (/Uploader Comment|上传者/i.test(wrapperText)) {
+                        badgeHtml = '<span style="color:#ed2553; border: 1px solid #ed2553; padding: 1px 4px; border-radius: 3px; font-size: 10px; margin-left: 8px;">上传者</span>';
+                    } else {
+                        const scoreNode = wrapper.querySelector('span[id^="comment_score_"]');
+                        if (scoreNode) {
+                            const actualScore = scoreNode.textContent.trim();
+                            const scoreColor = actualScore.includes('+') ? '#4caf50' : '#f44336';
+                            badgeHtml = '<span onclick="const v = document.getElementById(\'' + voteId + '\'); v.style.display = v.style.display === \'none\' ? \'block\' : \'none\'" style="color:' + scoreColor + '; font-weight:bold; margin-left: 8px; font-size: 12px; cursor: pointer;">[' + actualScore + ']</span>';
+                        }
+                    }
+                    
+                    let bHtml = cBody.innerHTML.replace(/href="[^"]*\/g\/(\d+)\/([a-z0-9]+)\/?[^"]*"/gi, (m, newGid, newToken) => {
+                        return 'href="/m-view/' + newGid + '/' + newToken + '/"';
+                    });
+                    let extraVotesDiv = votesHtml ? '<div id="' + voteId + '" style="display:none; margin-top:8px; padding-top:8px; border-top:1px dashed #444; font-size:11px; color:#aaa; line-height: 1.4;">' + votesHtml + '</div>' : '';
+
+                    commentsHtml += '<div class="comment" id="c-' + commentIdx + '">' +
+                        '<div class="c-head">' +
+                        '<span style="font-weight:bold; color:#ddd; font-size:13px;">' + author + '</span>' + 
+                        badgeHtml + 
+                        '<span style="margin-left:auto; color:#666; font-size:11px; display:flex; align-items:center;">' + 
+                            '<span style="color:#888; font-size:11px; margin-right:6px;">#' + commentIdx + '</span>' + 
+                            timeStr + 
+                        '</span></div>' +
+                        '<div class="c-body">' + bHtml + extraVotesDiv + '</div></div>';
+                });
+
+                let html = '';
+                html += '<div class=\"info-section\">';
+                if(coverUrl) html += '<img class=\"cover\" src=\"' + coverUrl + '\">';
+                html += '<div class=\"title-main\">' + gn + '</div>';
+                if(gj) html += '<div class=\"title-sub\">' + gj + '</div>';
+                html += '<div class=\"meta-info\">评分: ' + rating + ' &nbsp;|&nbsp; 上传者: ' + uploader + ' &nbsp;|&nbsp; ' + posted + '</div>';
+                html += '</div>';
+
+                // 开始阅读按钮 + 下拉框
+                const firstThumb = Array.from(doc.querySelectorAll('#gdt a'))[0];
+                const initialBtnHref = firstThumb ? getFinalHref(firstThumb.getAttribute('href'), '1') : '#';
+                
+                html += '<div class=\"read-group\">' +
+                            '<a class=\"read-btn\" id=\"mainReadBtn\" href=\"' + initialBtnHref + '\">▶ 开始阅读</a>' +
+                            '<select class=\"read-select\" onchange=\"onModeChange(this.value)\">' +
+                                '<option value=\"mpv\" ' + (currentMode === 'mpv' ? 'selected' : '') + '>多页查看器</option>' +
+                                '<option value=\"normal\" ' + (currentMode === 'normal' ? 'selected' : '') + '>普通查看</option>' +
+                            '</select>' +
+                        '</div>';
+
+                if (tagsHtml) html += '<div class=\"tags-section\">' + tagsHtml + '</div>';
+                html += '<div class=\"thumbs-grid\" id=\"thumbsGrid\">' + thumbsHtml + '</div>';
+                html += '<div id=\"paginationWrap\">' + paginationHtml + '</div>';
+                if (commentsHtml) html += '<div class=\"comments-section\"><h3>评论 (' + doc.querySelectorAll('div[id^=\"comment_\"]').length + ')</h3>' + commentsHtml + '</div>';
+
+                document.getElementById('content').innerHTML = html;
+
+                const handleHashJump = () => {
+                    const hash = window.location.hash;
+                    if (hash && /^#\d+$/.test(hash)) {
+                        const floor = hash.substring(1);
+                        const target = document.getElementById('c-' + floor);
+                        if (target) {
+                            setTimeout(() => {
+                                target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                target.style.boxShadow = '0 0 12px #ed2553';
+                                setTimeout(() => target.style.boxShadow = 'none', 2000);
+                            }, 300);
+                        }
+                    }
+                };
+                handleHashJump();
+                window.onhashchange = handleHashJump;
+
+            } catch (err) {
+                document.getElementById('content').innerHTML = '<div class=\"loading\">加载失败: ' + err.message + '</div>';
+            }
+        }
+
+        async function paginate(targetUrl, proxyUrl) {
+            window.history.replaceState({url: targetUrl}, '', proxyUrl);
+            lastLoadedUrl = targetUrl;
+
+            const grid = document.getElementById('thumbsGrid');
+            if (grid) {
+                grid.innerHTML = '<div class="loading" style="grid-column: 1 / -1; padding: 30px 0;">正在拉取...</div>';
+                grid.scrollIntoView({behavior: 'smooth', block: 'start'});
+            }
+            try {
+                const res = await fetch(targetUrl);
+                const text = await res.text();
+                const doc = new DOMParser().parseFromString(text, 'text/html');
+                let thumbsHtml = '';
+                Array.from(doc.querySelectorAll('#gdt a')).forEach((a) => {
+                    const href = a.getAttribute('href');
+                    const pageNum = (href.match(/-(\d+)$/) || [0, '1'])[1];
+                    const finalHref = getFinalHref(href, pageNum);
+                    const thumbImg = a.querySelector('img');
+                    const thumbDiv = a.querySelector('div[style]');
+                    let inner = thumbImg ? '<img src=\"' + (thumbImg.getAttribute('src')||thumbImg.getAttribute('data-src')) + '\">' : (thumbDiv ? '<div style=\"' + thumbDiv.getAttribute('style') + '\"></div>' : '');
+                    thumbsHtml += '<a class=\"thumb-wrap\" href=\"' + finalHref + '\" data-orig=\"' + href + '\" data-page=\"' + pageNum + '\">' + inner + '</a>';
+                });
+                let pPageHtml = '';
+                const ptb = doc.querySelector('.ptb') || doc.querySelector('.ptt');
+                if (ptb) {
+                    ptb.querySelectorAll('*').forEach(el => el.removeAttribute('onclick'));
+                    ptb.querySelectorAll('a').forEach(a => a.setAttribute('href', '/m-view?url=' + encodeURIComponent(a.getAttribute('href'))));
+                    pPageHtml = '<div class=\"pagination\">' + ptb.outerHTML + '</div>';
+                }
+                if (grid) grid.innerHTML = thumbsHtml;
+                const pWrap = document.getElementById('paginationWrap');
+                if (pWrap) pWrap.innerHTML = pPageHtml;
+            } catch (err) { console.error(err); }
+        }
+
+        document.addEventListener('click', function(e) {
+            const link = e.target.closest('a');
+            if (link && link.getAttribute('href') && link.getAttribute('href').startsWith('/m-view?url=')) {
+                e.preventDefault();
+                const nextTarget = new URL(link.href).searchParams.get('url');
+                if (nextTarget) {
+                    if (link.closest('.pagination')) paginate(nextTarget, link.href, true);
+                    else loadGallery(nextTarget, true);
+                }
+            }
+        });
+
+        window.addEventListener('popstate', () => {
+            const parts = window.location.pathname.split('/').filter(p => p);
+            if (parts.length >= 3) {
+                loadGallery('/g/' + parts[1] + '/' + parts[2] + '/', false);
+            }
+        });
+
+        const initialUrl = '/g/' + gidFromPath + '/' + tokenFromPath + '/';
+        loadGallery(initialUrl, false);
+    </script>
+</body>
+</html>

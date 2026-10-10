@@ -1,4 +1,4 @@
-package main
+package proxy
 
 import (
 	"log"
@@ -7,9 +7,9 @@ import (
 	"time"
 )
 
-func fetchIgneous(cookies map[string]string) string {
+func FetchIgneous(site string, cookies map[string]string) string {
 	client := &http.Client{Timeout: 30 * time.Second}
-	req, _ := http.NewRequest("GET", ExSite+"/", nil)
+	req, _ := http.NewRequest("GET", site+"/", nil)
 
 	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36")
 	req.Header.Set("Referer", "https://e-hentai.org/")

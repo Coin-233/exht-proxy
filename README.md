@@ -2,7 +2,21 @@
 
 代理 ex 方便没有 ex 站的用户浏览，默认屏蔽账号相关交互功能，并加入了一些小功能
 
-## 启动
+## 开发与构建
+
+```bash
+cp .env.example .env
+go run ./cmd/exht-proxy
+```
+
+构建并启动: 
+
+```bash
+go build -o build/exht-proxy ./cmd/exht-proxy
+PORT=8000 ./build/exht-proxy
+```
+
+## 启动已发布的二进制
 
 ```bash
 PORT=<PORT> ./exht-proxy
@@ -92,4 +106,4 @@ COOKIES='ipb_member_id= ;ipb_pass_hash= ;hath_perks= ;sk= '
 - [ ] 速率限制
 - [x] 网页界面汉化 & 搜索补全 (来自 [EhTagTranslation](https://github.com/EhTagTranslation/Database) )
 - [ ] 个人收藏
-- [ ] 允许使用一定 GP 进行归档下载 
+- [ ] 允许使用一定 GP 进行归档下载
