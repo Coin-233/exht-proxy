@@ -13,19 +13,19 @@ go run ./cmd/exht-proxy
 
 ```bash
 go build -o build/exht-proxy ./cmd/exht-proxy
-PORT=8000 ./build/exht-proxy
+./build/exht-proxy
 ```
 
 ## 启动已发布的二进制
 
 ```bash
-PORT=<PORT> ./exht-proxy
+./exht-proxy
 ```
 
 ## 显示日志
 
 ```bash
-SHOW_LOG=1 PORT=<PORT> ./exht-proxy
+SHOW_LOG=1 ./exht-proxy
 ```
 
 ## 配置项
@@ -33,7 +33,7 @@ SHOW_LOG=1 PORT=<PORT> ./exht-proxy
 请在`.env`文件中写入cookie, 并按需配置屏蔽项目
 
 ```env
-
+PORT=8000
 BLOCKED_PATHS=archiver.php,mytags,repo/torrent_post.php,gallerytorrents.php,uconfig.php,favorites.php
 BLOCKED_QUERY_KEYS=report,act,inline_set
 BLOCKED_METHODS=rategallery,votecomment,favorite,taggallery
