@@ -56,8 +56,12 @@ type ProxyHandler struct {
 }
 
 func NewProxyHandler(cfg config.Config, cookies map[string]string, store *storage.Store) *ProxyHandler {
+	return NewProxyHandlerWithClient(cfg, cookies, store, &http.Client{Timeout: 60 * time.Second})
+}
+
+func NewProxyHandlerWithClient(cfg config.Config, cookies map[string]string, store *storage.Store, client *http.Client) *ProxyHandler {
 	h := &ProxyHandler{
-		client:  &http.Client{Timeout: 60 * time.Second},
+		client:  client,
 		cookies: cookies,
 		config:  cfg,
 		store:   store,
@@ -341,7 +345,7 @@ func (h *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 构建新请求
-	req, err := http.NewRequest(r.Method, targetURL, bytes.NewBuffer(bodyBytes))
+	req, err := http.NewRequestWithContext(r.Context(), r.Method, targetURL, bytes.NewBuffer(bodyBytes))
 	if err != nil {
 		http.Error(w, "创建请求失败", http.StatusInternalServerError)
 		return

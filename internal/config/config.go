@@ -10,6 +10,11 @@ import (
 const DefaultIPBanMessage = "代理服务器因请求过于频繁被临时封禁, 请在 {countdown} 后重试"
 
 type Config struct {
+	WarpEnabled      bool
+	WarpProxyURL     string
+	WarpRetries      int
+	WarpRetrySeconds int
+	WarpCLI          string
 	IPBanMessage     string
 	ExSite           string
 	Port             string
@@ -32,13 +37,18 @@ func Load() Config {
 		banMessage = DefaultIPBanMessage
 	}
 	return Config{
-		IPBanMessage: banMessage,
-		ExSite:       "https://exhentai.org",
-		Port:         port,
-		RawCookies:   strings.Trim(os.Getenv("COOKIES"), `"' `),
-		ShowLog:      os.Getenv("SHOW_LOG") == "1",
-		TorrentMode:  mode("TORRENT_MODE"),
-		ArchiverMode: mode("ARCHIVER_MODE"),
+		IPBanMessage:     banMessage,
+		WarpEnabled:      os.Getenv("WARP_ENABLED") == "1",
+		WarpProxyURL:     envDefault("WARP_PROXY_URL", "socks5://127.0.0.1:40000"),
+		WarpCLI:          envDefault("WARP_CLI", "warp-cli"),
+		WarpRetries:      positiveInt("WARP_MAX_RETRIES", 3),
+		WarpRetrySeconds: positiveInt("WARP_RETRY_SECONDS", 3),
+		ExSite:           "https://exhentai.org",
+		Port:             port,
+		RawCookies:       strings.Trim(os.Getenv("COOKIES"), `"' `),
+		ShowLog:          os.Getenv("SHOW_LOG") == "1",
+		TorrentMode:      mode("TORRENT_MODE"),
+		ArchiverMode:     mode("ARCHIVER_MODE"),
 		BlockedPaths: list("BLOCKED_PATHS", []string{
 			"archiver.php", "mytags", "repo/torrent_post.php", "gallerytorrents.php", "uconfig.php", "favorites.php",
 		}, func(s string) string { return strings.TrimLeft(s, "/") }),
@@ -72,4 +82,18 @@ func list(key string, defaults []string, normalize func(string) string) []string
 		}
 	}
 	return values
+}
+
+func envDefault(key, fallback string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return fallback
+}
+func positiveInt(key string, fallback int) int {
+	n, err := strconv.Atoi(os.Getenv(key))
+	if err != nil || n < 1 {
+		return fallback
+	}
+	return n
 }

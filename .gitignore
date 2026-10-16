@@ -2,3 +2,6 @@
 build/
 tmp/
 *.db*
+/warp-cli
+/warp-svc
+/.warp-download-*/

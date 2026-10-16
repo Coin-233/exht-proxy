@@ -38,17 +38,22 @@ func Run() error {
 		log.Println("已开启详细访问日志输出")
 	}
 
+	client, err := proxy.NewUpstreamClient(cfg)
+	if err != nil {
+		return err
+	}
+
 	// 获取 Igneous Cookie
 	baseCookies := parseCookies(cfg.RawCookies)
 	log.Printf("启动：检测到 cookie 键：%v\n", getMapKeys(baseCookies))
 
-	igneous := proxy.FetchIgneous(cfg.ExSite, baseCookies)
+	igneous := proxy.FetchIgneousWithClient(client, cfg.ExSite, baseCookies)
 	if igneous != "" {
 		baseCookies["igneous"] = igneous
 	}
 
 	port := cfg.Port
-	proxyHandler := proxy.NewProxyHandler(cfg, baseCookies, store)
+	proxyHandler := proxy.NewProxyHandlerWithClient(cfg, baseCookies, store, client)
 	go proxyHandler.InitTagDB()
 	loggedHandler := loggingMiddleware(proxyHandler, cfg.ShowLog)
 
@@ -68,7 +73,7 @@ func Run() error {
 				return
 			case <-ticker.C:
 			}
-			newIgneous := proxy.FetchIgneous(cfg.ExSite, refreshCookies)
+			newIgneous := proxy.FetchIgneousWithClient(client, cfg.ExSite, refreshCookies)
 			if newIgneous != "" {
 				proxyHandler.UpdateCookie("igneous", newIgneous)
 				log.Printf("igneous cookie 已自动刷新: %s\n", newIgneous)
