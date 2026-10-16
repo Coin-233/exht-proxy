@@ -402,6 +402,22 @@ func (h *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// 封禁响应必须在 API 改写, 汉化和 UI 注入之前返回
+	if strings.HasPrefix(strings.ToLower(contentType), "text/") || contentType == "" || strings.HasSuffix(path, "api.php") {
+		respBytes, err := io.ReadAll(resp.Body)
+		if err != nil {
+			http.Error(w, "读取上游响应失败", http.StatusBadGateway)
+			return
+		}
+		if message, banned := h.ipBanMessage(string(respBytes)); banned {
+			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+			w.WriteHeader(resp.StatusCode)
+			w.Write([]byte(message))
+			return
+		}
+		resp.Body = io.NopCloser(bytes.NewReader(respBytes))
+	}
+
 	if strings.HasSuffix(path, "api.php") {
 		respBytes, _ := io.ReadAll(resp.Body)
 		content := string(respBytes)

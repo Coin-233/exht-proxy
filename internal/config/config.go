@@ -7,7 +7,10 @@ import (
 	"strings"
 )
 
+const DefaultIPBanMessage = "代理服务器因请求过于频繁被临时封禁, 请在 {countdown} 后重试"
+
 type Config struct {
+	IPBanMessage     string
 	ExSite           string
 	Port             string
 	RawCookies       string
@@ -24,7 +27,12 @@ func Load() Config {
 	if port == "" {
 		port = "8000"
 	}
+	banMessage := os.Getenv("IP_BAN_MESSAGE")
+	if banMessage == "" {
+		banMessage = DefaultIPBanMessage
+	}
 	return Config{
+		IPBanMessage: banMessage,
 		ExSite:       "https://exhentai.org",
 		Port:         port,
 		RawCookies:   strings.Trim(os.Getenv("COOKIES"), `"' `),

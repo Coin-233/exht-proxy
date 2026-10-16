@@ -99,7 +99,12 @@ COOKIES='ipb_member_id= ;ipb_pass_hash= ;hath_perks= ;sk= '
 
 每次启动时自动获取`igneous`, 请在欧美IP机器上部署
 
-## TODO
+
+## 临时封禁提示
+
+上游返回 IP 请求频率封禁提示时, 直接返回纯文本提示, 保留上游状态码
+
+### TODO
 
 - [x] 持久化访问统计
 - [ ] 密码访问
